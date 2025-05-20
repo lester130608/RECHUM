@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  height: 100%; /* Asegura que html y body ocupen toda la altura */
+  margin: 0; /* Elimina márgenes predeterminados */
+  padding: 0; /* Elimina padding predeterminado */
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 16px !important;
+  background-color: #f3f4f6;
+  color: #111827;
+  box-sizing: border-box;
+}
