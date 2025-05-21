@@ -7,7 +7,7 @@ import { logAction } from '@/lib/logAction'
 
 interface UploadDocumentProps {
   employeeId: string
-  type: string // e.g., "license", "id", "w9"
+  type?: string
 }
 
 export default function AdminUploadDocument({ employeeId, type }: UploadDocumentProps) {
@@ -16,15 +16,19 @@ export default function AdminUploadDocument({ employeeId, type }: UploadDocument
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState('')
 
+  const safeType = type || 'document'
+
   const handleUpload = async () => {
-    if (!file) return
+    if (!file || !type) {
+      setMessage('❌ Missing file or document type')
+      return
+    }
 
     setUploading(true)
     setMessage('')
 
-    const filePath = `employee-documents/${employeeId}/${type}-${Date.now()}-${file.name}`
+    const filePath = `employee-documents/${employeeId}/${safeType}-${Date.now()}-${file.name}`
 
-    // Subir archivo al bucket
     const { error: uploadError } = await supabase.storage
       .from('employee-documents')
       .upload(filePath, file)
@@ -35,7 +39,6 @@ export default function AdminUploadDocument({ employeeId, type }: UploadDocument
       return
     }
 
-    // Crear URL firmada (válida por 1 año)
     const { data: urlData, error: urlError } = await supabase.storage
       .from('employee-documents')
       .createSignedUrl(filePath, 60 * 60 * 24 * 365)
@@ -48,10 +51,9 @@ export default function AdminUploadDocument({ employeeId, type }: UploadDocument
       return
     }
 
-    // Guardar en tabla employee_documents
     const { error: dbError } = await supabase.from('employee_documents').insert({
       employee_id: employeeId,
-      type,
+      type: safeType,
       file_url: fileUrl,
       verified: false
     })
@@ -60,11 +62,9 @@ export default function AdminUploadDocument({ employeeId, type }: UploadDocument
       setMessage(`File uploaded, but database error: ${dbError.message}`)
     } else {
       setMessage('✅ File uploaded and saved successfully')
-
-      // 🔐 Log the action
       await logAction({
         employeeId,
-        action: `Uploaded ${type.toUpperCase()}`,
+        action: `Uploaded ${safeType.toUpperCase()}`,
         by: session?.user?.email || 'unknown'
       })
     }
@@ -73,14 +73,18 @@ export default function AdminUploadDocument({ employeeId, type }: UploadDocument
   }
 
   return (
-    <div className="space-y-2">
-      <label className="block font-medium">Upload PDF for: {type.toUpperCase()}</label>
+    <div className="border p-4 rounded bg-gray-50 space-y-3 mb-4">
+      <label className="block font-medium text-sm text-gray-700">
+        Upload PDF for: <strong>{safeType.toUpperCase()}</strong>
+      </label>
+
       <input
         type="file"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
         accept="application/pdf"
-        className="border p-2 w-full"
+        className="block w-full border px-3 py-2 rounded"
       />
+
       <button
         onClick={handleUpload}
         disabled={!file || uploading}
@@ -88,7 +92,10 @@ export default function AdminUploadDocument({ employeeId, type }: UploadDocument
       >
         {uploading ? 'Uploading...' : 'Upload'}
       </button>
-      {message && <p className="text-sm mt-2 text-gray-700">{message}</p>}
+
+      {message && (
+        <p className="text-sm mt-1 text-gray-700">{message}</p>
+      )}
     </div>
   )
 }
