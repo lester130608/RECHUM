@@ -57,10 +57,13 @@ export default function EditEmployeePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const { error } = await supabase.from('employees').update({
-      ...form,
-      rate: form.rate ? parseFloat(form.rate) : null,
-    }).eq('id', employeeId)
+    const { error } = await supabase
+      .from('employees')
+      .update({
+        ...form,
+        rate: form.rate ? parseFloat(form.rate) : null,
+      })
+      .eq('id', employeeId)
 
     if (!error) {
       alert('✅ Changes saved')
@@ -73,111 +76,66 @@ export default function EditEmployeePage() {
   if (loading) return <p className="p-4">Loading...</p>
 
   return (
-    <div className="container max-w-3xl mx-auto p-6 space-y-10">
-      <h1 className="text-2xl font-bold mb-4">Edit Employee</h1>
+    <div className="container">
+      <h1 className="heading">Edit Employee</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block font-medium mb-1">First Name *</label>
-            <input
-              type="text"
-              name="first_name"
-              value={form.first_name}
-              onChange={handleChange}
-              required
-              className="w-full border px-3 py-2 rounded"
-            />
-          </div>
-          <div>
-            <label className="block font-medium mb-1">Last Name *</label>
-            <input
-              type="text"
-              name="last_name"
-              value={form.last_name}
-              onChange={handleChange}
-              required
-              className="w-full border px-3 py-2 rounded"
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="section">
+        <div className="form-row">
+          <label>First Name *</label>
+          <input type="text" name="first_name" value={form.first_name} onChange={handleChange} required />
         </div>
 
-        <div>
-          <label className="block font-medium mb-1">Email</label>
-          <input
-            type="email"
-            name="email"
-            value={form.email}
-            onChange={handleChange}
-            className="w-full border px-3 py-2 rounded"
-          />
+        <div className="form-row">
+          <label>Last Name *</label>
+          <input type="text" name="last_name" value={form.last_name} onChange={handleChange} required />
         </div>
 
-        <div>
-          <label className="block font-medium mb-1">Role</label>
-          <input
-            type="text"
-            name="role"
-            value={form.role}
-            onChange={handleChange}
-            className="w-full border px-3 py-2 rounded"
-          />
+        <div className="form-row">
+          <label>Email</label>
+          <input type="email" name="email" value={form.email} onChange={handleChange} />
         </div>
 
-        <div>
-          <label className="block font-medium mb-1">Employment Type</label>
-          <input
-            type="text"
-            name="employment_type"
-            value={form.employment_type}
-            onChange={handleChange}
-            className="w-full border px-3 py-2 rounded"
-          />
+        <div className="form-row">
+          <label>Role</label>
+          <input type="text" name="role" value={form.role} onChange={handleChange} />
         </div>
 
-        <div>
-          <label className="block font-medium mb-1">Rate ($/hr)</label>
-          <input
-            type="number"
-            name="rate"
-            value={form.rate}
-            onChange={handleChange}
-            className="w-full border px-3 py-2 rounded"
-          />
+        <div className="form-row">
+          <label>Employment Type</label>
+          <input type="text" name="employment_type" value={form.employment_type} onChange={handleChange} />
         </div>
 
-        <div>
-          <label className="block font-medium mb-1">Status</label>
-          <select
-            name="status"
-            value={form.status}
-            onChange={handleChange}
-            className="w-full border px-3 py-2 rounded"
-          >
+        <div className="form-row">
+          <label>Rate ($/hr)</label>
+          <input type="number" name="rate" value={form.rate} onChange={handleChange} />
+        </div>
+
+        <div className="form-row">
+          <label>Status</label>
+          <select name="status" value={form.status} onChange={handleChange}>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
         </div>
 
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Save Changes
-        </button>
+        <button type="submit" className="primary">Save Changes</button>
       </form>
 
-      {/* 📂 Upload Scanned Documents */}
-      <AdminUploadDocument employeeId={employeeId} />
-      
-      <div className="mt-10">
-  <EmployeeDocumentsStatus employeeId={employeeId} />
-</div>
+      <div className="section">
+        <AdminUploadDocument employeeId={employeeId} type="id" />
+        <AdminUploadDocument employeeId={employeeId} type="w9" />
+        <AdminUploadDocument employeeId={employeeId} type="license" />
+        <AdminUploadDocument employeeId={employeeId} type="void_check" />
+      </div>
+
+      <div className="section">
+        <EmployeeDocumentsStatus employeeId={employeeId} />
+      </div>
 
       <div>
         <button
-          onClick={() => window.location.href = "/employees/hr/all"}
-          className="mt-6 bg-gray-500 text-white px-4 py-2 rounded"
+          onClick={() => router.push("/employees/hr/all")}
+          className="btn-secondary"
         >
           Back to All Employees
         </button>

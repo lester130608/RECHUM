@@ -74,12 +74,12 @@ export default function AllEmployeesPage() {
               <td className="py-2 px-4 border-b">{employee.email}</td>
               <td className="py-2 px-4 border-b">{employee.role}</td>
               <td className="py-2 px-4 border-b">{employee.status}</td>
-              <td className="py-2 px-4 border-b">
+              <td className="py-2 px-4 border-b space-x-2">
                 <Link href={`/employees/view/${employee.id}`}>
-                  <button className="text-blue-500 hover:underline">View</button>
+                  <button className="small">View</button>
                 </Link>
                 <Link href={`/employees/edit/${employee.id}`}>
-                  <button className="text-blue-500 hover:underline ml-2">Edit</button>
+                  <button className="small">Edit</button>
                 </Link>
                 {employee.status?.toLowerCase() === 'active' && (
                   <button
@@ -99,7 +99,7 @@ export default function AllEmployeesPage() {
                         alert('❌ Error updating employee')
                       }
                     }}
-                    className="text-red-500 hover:underline ml-2"
+                    className="small danger"
                   >
                     Deactivate
                   </button>
@@ -113,15 +113,7 @@ export default function AllEmployeesPage() {
       <div style={{ marginTop: "2rem" }}>
         <button
           onClick={() => window.location.href = "/dashboard"}
-          style={{
-            padding: "0.5rem 1rem",
-            backgroundColor: "#6b7280",
-            color: "white",
-            border: "none",
-            borderRadius: "0.375rem",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
+          className="small"
         >
           Back to Dashboard
         </button>

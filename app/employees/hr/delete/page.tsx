@@ -44,56 +44,52 @@ export default function DeletedEmployeesPage() {
     <div className="container">
       <h1 className="heading">Inactive Employees</h1>
 
-      <input
-        type="text"
-        placeholder="Search by name"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="border p-2 mb-4 w-full"
-      />
+      <div className="form-row">
+        <label>Search by name</label>
+        <input
+          type="text"
+          placeholder="e.g. John or Jane"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
-      <table className="min-w-full bg-white">
-        <thead>
-          <tr>
-            <th className="py-2 px-4 border-b">First Name</th>
-            <th className="py-2 px-4 border-b">Last Name</th>
-            <th className="py-2 px-4 border-b">Email</th>
-            <th className="py-2 px-4 border-b">Role</th>
-            <th className="py-2 px-4 border-b">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((employee) => (
-            <tr key={employee.id}>
-              <td className="py-2 px-4 border-b">{employee.first_name}</td>
-              <td className="py-2 px-4 border-b">{employee.last_name}</td>
-              <td className="py-2 px-4 border-b">{employee.email}</td>
-              <td className="py-2 px-4 border-b">{employee.role}</td>
-              <td className="py-2 px-4 border-b">
-                <button
-                  onClick={() => handleReactivate(employee.id)}
-                  className="text-green-600 hover:underline"
-                >
-                  Reactivate
-                </button>
-              </td>
+      <div className="section">
+        <table className="min-w-full bg-white">
+          <thead>
+            <tr>
+              <th className="py-2 px-4 border-b">First Name</th>
+              <th className="py-2 px-4 border-b">Last Name</th>
+              <th className="py-2 px-4 border-b">Email</th>
+              <th className="py-2 px-4 border-b">Role</th>
+              <th className="py-2 px-4 border-b">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filtered.map((employee) => (
+              <tr key={employee.id}>
+                <td className="py-2 px-4 border-b">{employee.first_name}</td>
+                <td className="py-2 px-4 border-b">{employee.last_name}</td>
+                <td className="py-2 px-4 border-b">{employee.email}</td>
+                <td className="py-2 px-4 border-b">{employee.role}</td>
+                <td className="py-2 px-4 border-b">
+                  <button
+                    onClick={() => handleReactivate(employee.id)}
+                    className="btn-action btn-green"
+                  >
+                    Reactivate
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div style={{ marginTop: "2rem" }}>
         <button
           onClick={() => window.location.href = "/dashboard"}
-          style={{
-            padding: "0.5rem 1rem",
-            backgroundColor: "#6b7280",
-            color: "white",
-            border: "none",
-            borderRadius: "0.375rem",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
+          className="btn-secondary"
         >
           Back to Dashboard
         </button>

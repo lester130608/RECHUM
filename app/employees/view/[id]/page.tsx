@@ -19,9 +19,9 @@ export default function ViewEmployeePage() {
   if (!employee) return <p className="p-4">Loading...</p>;
 
   return (
-    <div className="max-w-xl mx-auto p-4">
-      <h1 className="text-2xl font-semibold mb-4">Employee Details</h1>
-      <div className="space-y-2 text-sm">
+    <div className="container">
+      <h1 className="heading">Employee Details</h1>
+      <div className="section text-sm space-y-2">
         <p><strong>First Name:</strong> {employee.first_name}</p>
         <p><strong>Last Name:</strong> {employee.last_name}</p>
         <p><strong>Email:</strong> {employee.email}</p>
@@ -29,6 +29,23 @@ export default function ViewEmployeePage() {
         <p><strong>Status:</strong> {employee.status}</p>
         <p><strong>Rate:</strong> ${employee.rate}</p>
         <p><strong>Employment Type:</strong> {employee.employment_type}</p>
+      </div>
+
+      <div style={{ marginTop: "2rem" }}>
+        <button
+          onClick={() => window.location.href = "/employees/hr/all"}
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#6b7280",
+            color: "white",
+            border: "none",
+            borderRadius: "0.375rem",
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+        >
+          Back to All Employees
+        </button>
       </div>
     </div>
   );
