@@ -1,8 +1,13 @@
+// File: lib/authOptions.ts
+
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { createClient } from "@supabase/supabase-js";
 
-const supabase = getSupabaseAdmin();
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export const authOptions = {
   providers: [
@@ -10,7 +15,7 @@ export const authOptions = {
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
         const { email, password } = credentials;
@@ -29,8 +34,8 @@ export const authOptions = {
           role: user.role,
           name: user.name,
         };
-      }
-    })
+      },
+    }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
@@ -38,7 +43,7 @@ export const authOptions = {
       if (user) {
         token.id = user.id;
         token.email = user.email;
-        token.role = user.role;
+        token.role = user.role; // now supports "admin", "employee", "hr_manager"
       }
       return token;
     },
@@ -47,7 +52,7 @@ export const authOptions = {
       session.user.email = token.email;
       session.user.role = token.role;
       return session;
-    }
+    },
   },
   pages: {
     signIn: "/login",

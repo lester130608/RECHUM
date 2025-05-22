@@ -5,6 +5,7 @@ import { useState } from "react";
 
 export default function SidebarAdmin() {
   const [showHR, setShowHR] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <aside
@@ -44,8 +45,20 @@ export default function SidebarAdmin() {
           </li>
 
           <li style={linkItem}>
-            <Link href="/dashboard/settings" style={linkStyle}>Settings</Link>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              style={{ ...linkStyle, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+            >
+              Settings {showSettings ? "▾" : "▸"}
+            </button>
+            {showSettings && (
+              <ul style={{ listStyle: "none", paddingLeft: "1rem", marginTop: "0.5rem" }}>
+                <li><Link href="/dashboard/settings/create-hr" style={subLinkStyle}>Create HR Supervisor</Link></li>
+                <li><Link href="/dashboard/settings/create-admin" style={subLinkStyle}>Create Full Admin</Link></li>
+              </ul>
+            )}
           </li>
+
           <li style={linkItem}>
             <Link href="/dashboard/reports" style={linkStyle}>Reports</Link>
           </li>
