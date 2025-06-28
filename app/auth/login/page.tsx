@@ -1,28 +1,43 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
-import "./style.css"; // Asegúrate de que este archivo exista en la misma carpeta
+import { supabase } from "@/lib/supabase";
+import "./style.css";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
-    const res = await signIn("credentials", {
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      redirect: false,
     });
-
-    if (res?.error) {
+    if (error) {
       setError("Invalid email or password");
     } else {
-      window.location.href = "/dashboard"; // Redirigir tras iniciar sesión
+      window.location.href = "/dashboard";
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError("");
+    setResetMessage("");
+    if (!email) {
+      setError("Please enter your email first.");
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "https://www.dttcoaching-payroll.com/auth/reset-password",
+    });
+    if (error) {
+      setError("Error sending reset email: " + error.message);
+    } else {
+      setResetMessage("Check your email for a password reset link.");
     }
   };
 
@@ -31,6 +46,7 @@ export default function LoginPage() {
       <div className="login-box">
         <h2 className="login-title">Welcome to DTT Coaching</h2>
         {error && <p className="error-message">{error}</p>}
+        {resetMessage && <p className="success-message">{resetMessage}</p>}
         <form onSubmit={handleLogin}>
           <input
             type="email"
@@ -52,6 +68,21 @@ export default function LoginPage() {
             Sign In
           </button>
         </form>
+        <button
+          type="button"
+          className="forgot-password-link"
+          style={{
+            marginTop: 12,
+            background: "none",
+            border: "none",
+            color: "#1e40af",
+            cursor: "pointer",
+            textDecoration: "underline",
+          }}
+          onClick={handleForgotPassword}
+        >
+          Forgot password?
+        </button>
       </div>
     </div>
   );
