@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useSession } from 'next-auth/react'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 import { logAction } from '@/lib/logAction'
 
 interface UploadDocumentProps {
@@ -11,7 +11,8 @@ interface UploadDocumentProps {
 }
 
 export default function AdminUploadDocument({ employeeId, type }: UploadDocumentProps) {
-  const { data: session } = useSession()
+  const user = useSupabaseUser();
+
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState('')
@@ -19,15 +20,20 @@ export default function AdminUploadDocument({ employeeId, type }: UploadDocument
   const safeType = type || 'document'
 
   const handleUpload = async () => {
-    if (!file || !type) {
-      setMessage('❌ Missing file or document type')
-      return
+    if (!file || !type || file.type !== "application/pdf") {
+      setMessage('❌ Please select a valid PDF file and document type');
+      return;
+    }
+
+    if (!user) {
+      setMessage('❌ Debes iniciar sesión con Supabase Auth');
+      return;
     }
 
     setUploading(true)
     setMessage('')
 
-    const filePath = `employee-documents/${employeeId}/${safeType}-${Date.now()}-${file.name}`
+    const filePath = `${employeeId}/${safeType}-${Date.now()}-${file.name}`
 
     const { error: uploadError } = await supabase.storage
       .from('employee-documents')
@@ -39,37 +45,25 @@ export default function AdminUploadDocument({ employeeId, type }: UploadDocument
       return
     }
 
-    const { data: urlData, error: urlError } = await supabase.storage
-      .from('employee-documents')
-      .createSignedUrl(filePath, 60 * 60 * 24 * 365)
+    // Nuevo: insertar registro en la tabla employee_documents
+    const { data: insertData, error: insertError } = await supabase
+      .from('employee_documents')
+      .insert([{
+        employee_id: employeeId,
+        type: safeType,
+        file_url: filePath,
+        upload_date: new Date().toISOString(),
+        verified: false
+      }]);
 
-    const fileUrl = urlData?.signedUrl
-
-    if (!fileUrl || urlError) {
-      setMessage('Error generating file URL')
-      setUploading(false)
-      return
+    if (insertError) {
+      setMessage(`Error saving document record: ${insertError.message}`);
+      setUploading(false);
+      return;
     }
 
-    const { error: dbError } = await supabase.from('employee_documents').insert({
-      employee_id: employeeId,
-      type: safeType,
-      file_url: fileUrl,
-      verified: false
-    })
-
-    if (dbError) {
-      setMessage(`File uploaded, but database error: ${dbError.message}`)
-    } else {
-      setMessage('✅ File uploaded and saved successfully')
-      await logAction({
-        employeeId,
-        action: `Uploaded ${safeType.toUpperCase()}`,
-        by: session?.user?.email || 'unknown'
-      })
-    }
-
-    setUploading(false)
+    setMessage('✅ File uploaded and registered successfully');
+    setUploading(false);
   }
 
   return (

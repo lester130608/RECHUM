@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -11,35 +11,39 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
+    console.log('SUBMIT', email, password) // <-- AGREGA ESTA LÍNEA
 
-    const result = await signIn('credentials', {
-      redirect: false,
+    const { error, data } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    if (result?.error) {
+    if (error) {
+      console.log('LOGIN ERROR:', error) // <-- AGREGA ESTA LÍNEA
       alert('Login failed. Please check your credentials.')
       setLoading(false)
       return
     }
 
-    await new Promise((res) => setTimeout(res, 300))
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('role')
+      .eq('email', email.toLowerCase())
+      .single()
 
-    const sessionRes = await fetch('/api/auth/session')
-    const session = await sessionRes.json()
+    console.log('DEBUG userRow:', userRow, 'role:', userRow?.role, 'email:', email)
 
-    const role = session?.user?.role
+    const role = userRow?.role
 
     if (role === 'admin') {
       window.location.href = '/dashboard'
-    } else if (role === 'employee') {
-      window.location.href = '/employees/my'
     } else {
-      alert('Unknown role. Please contact the administrator.')
-      setLoading(false)
+      alert('Access denied. Only admins can access esta sección.')
     }
+    setLoading(false)
   }
+
+  console.log('Login component rendered');
 
   return (
     <div className="login-wrapper">

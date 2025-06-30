@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabaseClient'
 import AdminLayout from '@/components/AdminLayout'
 import EmployeeDocumentsList from '@/components/EmployeeDocumentsList'
 import EmployeeOnboardingChecklist from '@/components/EmployeeOnboardingChecklist'

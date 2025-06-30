@@ -60,6 +60,19 @@ export default function DashboardExpirations() {
           See all expirations →
         </button>
       </div>
+
+      <div style={{ background: "#fffbe6", border: "1px solid #f59e42", borderRadius: 8, padding: 16, marginTop: 24 }}>
+        <h3 style={{ color: "#b45309", marginBottom: 12 }}>⚠️ Documentos próximos a vencer o vencidos</h3>
+        {records.length === 0 && <div>No hay documentos próximos a vencer.</div>}
+        <ul>
+          {records.map(doc => (
+            <li key={doc.employee_id} style={{ marginBottom: 8 }}>
+              <b>{doc.full_name}</b> — <b>{doc.type}</b> vence el <b>{doc.expiration_date ? new Date(doc.expiration_date).toLocaleDateString() : "Sin fecha"}</b>
+              {new Date(doc.expiration_date) < new Date() && <span style={{ color: "red", marginLeft: 8 }}>(¡VENCIDO!)</span>}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }

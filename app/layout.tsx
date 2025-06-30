@@ -1,12 +1,12 @@
 import "../styles/globals.css";
-import SessionWrapper from "@/components/SessionWrapper"; // asegúrate que la ruta es correcta
 import "../styles/app.css";
+import { supabase } from '@/lib/supabase';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <SessionWrapper>{children}</SessionWrapper>
+        {children}
       </body>
     </html>
   );

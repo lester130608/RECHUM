@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function CreateAdminPage() {
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -14,11 +13,10 @@ export default function CreateAdminPage() {
     setLoading(true)
     setStatus('')
 
+    // Solo guarda email y rol. No guardes password ni name aquí.
     const { error } = await supabase.from('users').insert({
       email,
-      password,
-      role: 'admin',
-      name: 'New Admin'
+      role: 'admin'
     })
 
     if (error) {
@@ -41,15 +39,6 @@ export default function CreateAdminPage() {
           placeholder="admin@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-
-        <label>Password</label>
-        <input
-          type="password"
-          placeholder="Temporary password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
           required
         />
 

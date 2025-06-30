@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function AllEmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([])
@@ -27,6 +27,8 @@ export default function AllEmployeesPage() {
       (!status || employee.status?.toLowerCase() === status)
     )
   })
+
+  console.log("Componente de empleados renderizado");
 
   return (
     <div className="container">

@@ -1,15 +1,54 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/authOptions";
-import { redirect } from "next/navigation";
+'use client'
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import DashboardExpirations from '@/components/DashboardExpirations'
 
-export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
+export default function DashboardPage() {
+  const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [notAdminReason, setNotAdminReason] = useState("");
 
-  console.log("DASHBOARD SESSION:", session); // 👈 Esto imprime la sesión en el servidor
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('DEBUG user:', user);
+      if (!user) {
+        setNotAdminReason("No user session found. Please log in again.");
+        window.location.href = "/not-authorized";
+        return;
+      }
+      const { data: userRow, error } = await supabase
+        .from('users')
+        .select('role')
+        .eq('email', user.email)
+        .single();
+      console.log('DEBUG userRow:', userRow, 'error:', error, 'email:', user.email);
+      if (error) {
+        setNotAdminReason("Error fetching user role: " + error.message);
+      } else if (!userRow) {
+        setNotAdminReason("User not found in users table: " + user.email);
+      } else if (userRow.role !== "admin") {
+        setNotAdminReason("User is not admin. Role: " + userRow.role);
+      }
+      if (userRow?.role === "admin") {
+        setIsAdmin(true);
+      } else {
+        window.location.href = "/not-authorized";
+      }
+      setLoading(false);
+    };
+    checkAdmin();
+  }, []);
 
-  if (!session || session.user.role !== "admin") {
-    redirect("/not-authorized");
+  if (loading) return <div>Loading...</div>;
+  if (!isAdmin) return <div style={{color: 'red', padding: 24}}>{notAdminReason || "Not authorized."}</div>;
+
+  let dashboardExpirationsContent = null;
+  try {
+    dashboardExpirationsContent = <DashboardExpirations />;
+  } catch (err) {
+    dashboardExpirationsContent = <div style={{color: 'red'}}>Error en DashboardExpirations: {String(err)}</div>;
   }
 
   return (
@@ -22,10 +61,9 @@ export default async function DashboardPage() {
           From here you can manage employees, reports, and system settings.
         </p>
       </div>
-  
       <div style={{ marginTop: "2rem" }}>
-        <DashboardExpirations />
+        {dashboardExpirationsContent}
       </div>
     </>
-  )
+  );
 }

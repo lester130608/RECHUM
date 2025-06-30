@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabaseClient'
+import EmployeeTypeSelector from "@/components/EmployeeTypeSelector";
+import EmployeeWizardW2 from "@/components/EmployeeWizardW2";
+import EmployeeWizard1099 from "@/components/EmployeeWizard1099";
 
 function generatePassword(length = 12) {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -13,99 +16,81 @@ export default function NewEmployeePage() {
   const [generatedPassword, setGeneratedPassword] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState<'invite' | 'manual'>('invite');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [type, setType] = useState<"w2" | "1099" | null>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setStatusMessage('')
-    setGeneratedPassword('')
+    e.preventDefault();
+    setLoading(true);
+    setStatusMessage('');
+    setGeneratedPassword('');
 
-    const password = generatePassword()
-    setGeneratedPassword(password)
+    const password = generatePassword();
+    setGeneratedPassword(password);
 
     const { error: userError } = await supabase.from('users').insert({
       email,
       password,
       role: 'employee',
-      name: 'New Employee'
-    })
+      name: mode === 'manual' ? `${firstName} ${lastName}` : 'New Employee'
+    });
 
     if (userError) {
-      setStatusMessage('❌ Error creating user: ' + userError.message)
-      setLoading(false)
-      return
+      setStatusMessage('❌ Error creating user: ' + userError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Solo envía email si es modo "invite"
+    if (mode === 'invite') {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json();
+      if (!result.success) {
+        setStatusMessage('⚠️ User created, but failed to send email invitation.');
+      }
     }
 
     const { error: empError } = await supabase.from('employees').insert({
       email,
-      first_name: 'Pending',
-      last_name: 'Pending',
+      first_name: mode === 'manual' ? firstName : 'Pending',
+      last_name: mode === 'manual' ? lastName : 'Pending',
       role: 'employee',
       employee_type: 'employee',
       status: 'active',
       ready_for_payroll: false,
       created_at: new Date().toISOString(),
-    })
+    });
 
     if (empError) {
-      setStatusMessage('⚠️ User created, but error creating employee: ' + empError.message)
+      setStatusMessage('⚠️ User created, but error creating employee: ' + empError.message);
     } else {
-      setStatusMessage('✅ Employee created successfully')
+      setStatusMessage('✅ Employee created successfully' + (mode === 'invite' ? ' (email sent)' : ''));
     }
 
-    setLoading(false)
+    setLoading(false);
   }
 
+  if (!type) {
+    return (
+      <div>
+        <EmployeeTypeSelector onSelect={setType} />
+        <p style={{color: 'gray', marginTop: 16}}>Selecciona el tipo de empleado para continuar.</p>
+      </div>
+    );
+  }
+
+  // Solo renderiza el wizard correspondiente
   return (
     <div className="container">
-      <h1 className="heading">Create New Employee</h1>
-
-      <form onSubmit={handleCreate} className="section form-row">
-        <label>Email</label>
-        <input
-          type="email"
-          placeholder="employee@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-
-        <button type="submit" className="primary" disabled={loading}>
-          {loading ? 'Creating...' : 'Create Employee'}
-        </button>
-
-        {statusMessage && <p style={{ fontWeight: 500 }}>{statusMessage}</p>}
-
-        {generatedPassword && (
-          <>
-            <p style={{ color: '#2563eb' }}>
-              Temporary Password: <strong>{generatedPassword}</strong>
-            </p>
-            <div style={{ marginTop: "1rem", display: "flex", gap: "1rem" }}>
-              <button
-                onClick={() => window.location.reload()}
-                className="primary"
-              >
-                Create Another
-              </button>
-              <button
-                onClick={() => window.location.href = "/dashboard"}
-                style={{
-                  backgroundColor: "#6b7280",
-                  color: "white",
-                  padding: "0.5rem 1rem",
-                  borderRadius: "0.375rem",
-                  fontWeight: 600,
-                  border: "none",
-                  cursor: "pointer"
-                }}
-              >
-                Back
-              </button>
-            </div>
-          </>
-        )}
-      </form>
+      <h1 className="heading">Crear Nuevo Empleado ({type === "w2" ? "W-2" : "1099"})</h1>
+      {type === "w2" && <EmployeeWizardW2 />}
+      {type === "1099" && <EmployeeWizard1099 />}
     </div>
   )
 }

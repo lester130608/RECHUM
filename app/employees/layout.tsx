@@ -1,12 +1,27 @@
 'use client'
 
-import { useSession, signOut } from "next-auth/react";
+import { supabase } from "@/lib/supabaseClient";
+import { useEffect, useState } from "react";
+import BackButton from "@/components/BackButton";
 
 export default function EmployeesLayout({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession();
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setEmail(user?.email ?? null);
+    };
+    getUser();
+  }, []);
 
   // Evita mostrar contenido hasta que haya sesión
-  if (!session) return null;
+  if (!email) return null;
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
 
   return (
     <div
@@ -17,12 +32,13 @@ export default function EmployeesLayout({ children }: { children: React.ReactNod
         fontFamily: "Segoe UI, sans-serif",
       }}
     >
+      <BackButton />
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2rem" }}>
         <h1 style={{ fontSize: "1.25rem", fontWeight: "bold" }}>
-          Welcome, {session.user.email}
+          Welcome, {email}
         </h1>
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={handleSignOut}
           style={{
             padding: "0.5rem 1rem",
             backgroundColor: "#ef4444",
@@ -36,7 +52,6 @@ export default function EmployeesLayout({ children }: { children: React.ReactNod
           Logout
         </button>
       </div>
-
       <div>{children}</div>
     </div>
   );
