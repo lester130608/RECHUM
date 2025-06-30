@@ -1,19 +1,17 @@
 "use client";
 
-// import { useSession } from "next-auth/react"; // Eliminado: migración a Supabase Auth
 import { useState } from 'react';
+import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
 export default function Payroll() {
-  const { data: session, status } = useSession();
+  const user = useSupabaseUser();
   const [payrollData, setPayrollData] = useState('');
 
-  if (status === "loading") {
+  if (!user) {
     return <p>Cargando...</p>;
   }
-
-  if (status === "unauthenticated" || session.user.role !== 'admin') {
-    return <p>No tienes permiso para acceder a esta página.</p>;
-  }
+  // Aquí podrías consultar el rol si lo necesitas
+  // if (rol !== 'admin') return <p>No tienes permiso para acceder a esta página.</p>;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -23,18 +21,15 @@ export default function Payroll() {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Gestionar Payroll</h1>
-      <form onSubmit={handleSubmit}>
+      <h1 className="text-2xl font-bold mb-4">Gestión de Nómina</h1>
+      <form onSubmit={handleSubmit} className="mb-4">
         <textarea
+          className="w-full border rounded p-2 mb-2"
           value={payrollData}
-          onChange={(e) => setPayrollData(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded mb-4"
-          rows={10}
-          placeholder="Introduce los datos del payroll aquí..."
+          onChange={e => setPayrollData(e.target.value)}
+          placeholder="Datos de nómina..."
         />
-        <button type="submit" className="px-4 py-2 bg-green-500 text-white rounded">
-          Ejecutar Payroll
-        </button>
+        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">Enviar</button>
       </form>
     </div>
   );

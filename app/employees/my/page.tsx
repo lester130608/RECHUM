@@ -1,14 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-// import { useSession } from 'next-auth/react' // Eliminado: migración a Supabase Auth
-import { supabase } from '@/lib/supabase'
-
+import { supabase } from '@/lib/supabaseClient'
 import UploadDocument from '@/components/UploadDocument'
 import EmployeeDocumentsList from '@/components/EmployeeDocumentsList'
 import EmployeeOnboardingChecklist from '@/components/EmployeeOnboardingChecklist'
 import EmployeeHRChecklist from '@/components/EmployeeHRChecklist'
-
 import ApplicationPersonalSection from '@/components/forms/ApplicationPersonalSection'
 import ApplicationEducationSection from '@/components/forms/ApplicationEducationSection'
 import PreviousEmploymentVerificationForm from '@/components/forms/PreviousEmploymentVerificationForm'
@@ -20,41 +17,29 @@ import DrugAlcoholConsentForm from '@/components/forms/DrugAlcoholConsentForm'
 import DirectDepositAuthorizationForm from '@/components/forms/DirectDepositAuthorizationForm'
 import PersonnelHandbookAcknowledgementForm from '@/components/forms/PersonnelHandbookAcknowledgementForm'
 import ApplicationSignatureSection from '@/components/forms/ApplicationSignatureSection'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export default function MyEmployeePage() {
-  const { data: session, status } = useSession()
+  const user = useSupabaseUser();
   const [employeeId, setEmployeeId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchEmployee = async () => {
-      if (status !== 'authenticated' || !session?.user?.email) return
-
-      const { data, error } = await supabase
+      if (!user?.email) return;
+      const { data } = await supabase
         .from('employees')
         .select('id')
-        .eq('email', session.user.email)
-        .eq('ready_for_payroll', false)
+        .eq('email', user.email)
         .single()
-
-      if (data) setEmployeeId(data.id)
+      setEmployeeId(data?.id ?? null)
       setLoading(false)
     }
+    if (user) fetchEmployee()
+  }, [user])
 
-    fetchEmployee()
-  }, [session, status])
-
-  if (status === 'loading' || loading) {
-    return <p className="p-4">Cargando...</p>
-  }
-
-  if (session?.user?.role !== 'employee') {
-    return <p className="p-4">Solo empleados pueden acceder a esta sección.</p>
-  }
-
-  if (!employeeId) {
-    return <p className="p-4">No tienes acceso o ya estás aprobado para payroll.</p>
-  }
+  if (loading) return <p>Cargando...</p>
+  if (!user || !employeeId) return <p>No tienes permiso para acceder a esta página.</p>
 
   return (
     <div className="container">

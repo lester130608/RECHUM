@@ -3,17 +3,15 @@
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
 import BackButton from "@/components/BackButton";
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export default function EmployeesLayout({ children }: { children: React.ReactNode }) {
+  const user = useSupabaseUser();
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setEmail(user?.email ?? null);
-    };
-    getUser();
-  }, []);
+    if (user) setEmail(user.email ?? null);
+  }, [user]);
 
   // Evita mostrar contenido hasta que haya sesión
   if (!email) return null;

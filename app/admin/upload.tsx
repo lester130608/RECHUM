@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from 'react';
+import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
 export default function Upload() {
-  const { data: session, status } = useSession();
+  const user = useSupabaseUser();
   const [file, setFile] = useState<File | null>(null);
 
-  if (status === "loading") {
+  if (!user) {
     return <p>Cargando...</p>;
   }
-
-  if (status === "unauthenticated" || session.user.role !== 'admin') {
-    return <p>No tienes permiso para acceder a esta página.</p>;
-  }
+  // Aquí podrías consultar el rol si lo necesitas
+  // if (rol !== 'admin') return <p>No tienes permiso para acceder a esta página.</p>;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {

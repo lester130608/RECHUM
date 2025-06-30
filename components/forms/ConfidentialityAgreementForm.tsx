@@ -1,15 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-// import { useSession } from 'next-auth/react' // Eliminado: migración a Supabase Auth
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabaseClient'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 interface Props {
   employeeId: string
 }
 
 export default function ConfidentialityAgreementForm({ employeeId }: Props) {
-  const { data: session } = useSession()
+  const user = useSupabaseUser();
   const [signature, setSignature] = useState('')
   const [signedDate, setSignedDate] = useState('')
   const [locked, setLocked] = useState(false)
@@ -17,6 +17,7 @@ export default function ConfidentialityAgreementForm({ employeeId }: Props) {
 
   useEffect(() => {
     const fetch = async () => {
+      if (!user) return;
       const { data } = await supabase
         .from('confidentiality_agreements')
         .select('signature, signed_date')
@@ -33,7 +34,7 @@ export default function ConfidentialityAgreementForm({ employeeId }: Props) {
     }
 
     fetch()
-  }, [employeeId])
+  }, [employeeId, user])
 
   const handleSave = async () => {
     const today = new Date().toISOString().split('T')[0]

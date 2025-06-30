@@ -1,43 +1,36 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-// import { useSession } from 'next-auth/react' // Eliminado: migración a Supabase Auth
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabaseClient'
 import SidebarAdmin from './SidebarAdmin'
-import ClientWrapper from './ClientWrapper'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession()
+  const user = useSupabaseUser();
   const [role, setRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchRole = async () => {
-      if (status !== 'authenticated' || !session?.user?.email) return
-
+      if (!user?.email) return;
       const { data } = await supabase
         .from('employees')
         .select('role')
-        .eq('email', session.user.email)
-        .single()
+        .eq('email', user.email)
+        .single();
+      setRole(data?.role ?? null);
+      setLoading(false);
+    };
+    if (user) fetchRole();
+  }, [user]);
 
-      if (data?.role) setRole(data.role)
-      setLoading(false)
-    }
-
-    fetchRole()
-  }, [session, status])
-
-  if (loading) return <p className="p-4">Cargando...</p>
-
-  const isAdmin = role === 'admin' || role === 'supervisor'
+  if (loading) return <p>Cargando...</p>;
+  if (!user || role !== 'admin') return <p>No tienes permiso para acceder a esta página.</p>;
 
   return (
-    <div className="flex">
-      {isAdmin && <SidebarAdmin />}
-      <div className={isAdmin ? 'ml-64 flex-1 p-4' : 'w-full p-4'}>
-        <ClientWrapper>{children}</ClientWrapper>
-      </div>
+    <div style={{ display: 'flex' }}>
+      <SidebarAdmin />
+      <main style={{ flex: 1 }}>{children}</main>
     </div>
-  )
+  );
 }

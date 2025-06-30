@@ -1,15 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-// import { useSession } from 'next-auth/react' // Eliminado: migración a Supabase Auth
+import { supabase } from '@/lib/supabaseClient'
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 interface Props {
   employeeId: string
 }
 
 export default function ApplicationPersonalSection({ employeeId }: Props) {
-  const { data: session } = useSession()
+  const user = useSupabaseUser();
   const [form, setForm] = useState({
     full_name: '',
     address: '',
@@ -26,6 +26,7 @@ export default function ApplicationPersonalSection({ employeeId }: Props) {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!user) return;
       const { data, error } = await supabase
         .from('employment_applications')
         .select('*')
@@ -37,7 +38,7 @@ export default function ApplicationPersonalSection({ employeeId }: Props) {
     }
 
     fetchData()
-  }, [employeeId])
+  }, [employeeId, user])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type, checked } = e.target

@@ -1,17 +1,13 @@
 "use client";
 
-// import { useSession } from "next-auth/react"; // Eliminado: migración a Supabase Auth
+import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 import Link from "next/link";
 
 export default function AdminDashboard() {
-  const { data: session, status } = useSession();
+  const user = useSupabaseUser();
 
-  if (status === "loading") {
+  if (!user) {
     return <p>Cargando...</p>;
-  }
-
-  if (status === "unauthenticated" || session.user.role !== 'admin') {
-    return <p>No tienes permiso para acceder a esta página.</p>;
   }
 
   return (
