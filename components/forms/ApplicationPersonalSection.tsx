@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useSession } from 'next-auth/react'
+// import { useSession } from 'next-auth/react' // Eliminado: migración a Supabase Auth
 
 interface Props {
   employeeId: string

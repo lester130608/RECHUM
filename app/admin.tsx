@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+// import { useSession } from "next-auth/react"; // Eliminado: migración a Supabase Auth
 import Link from "next/link";
 
 export default function AdminDashboard() {

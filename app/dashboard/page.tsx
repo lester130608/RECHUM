@@ -44,13 +44,6 @@ export default function DashboardPage() {
   if (loading) return <div>Loading...</div>;
   if (!isAdmin) return <div style={{color: 'red', padding: 24}}>{notAdminReason || "Not authorized."}</div>;
 
-  let dashboardExpirationsContent = null;
-  try {
-    dashboardExpirationsContent = <DashboardExpirations />;
-  } catch (err) {
-    dashboardExpirationsContent = <div style={{color: 'red'}}>Error en DashboardExpirations: {String(err)}</div>;
-  }
-
   return (
     <>
       <div style={{ padding: "2rem", fontFamily: "Segoe UI, sans-serif" }}>
@@ -62,7 +55,7 @@ export default function DashboardPage() {
         </p>
       </div>
       <div style={{ marginTop: "2rem" }}>
-        {dashboardExpirationsContent}
+        <DashboardExpirations />
       </div>
     </>
   );

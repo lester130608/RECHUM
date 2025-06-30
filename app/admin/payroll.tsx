@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+// import { useSession } from "next-auth/react"; // Eliminado: migración a Supabase Auth
 import { useState } from 'react';
 
 export default function Payroll() {
