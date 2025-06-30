@@ -25,17 +25,42 @@ export default function MyEmployeePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchEmployee = async () => {
+    const fetchOrCreateEmployee = async () => {
       if (!user?.email) return;
-      const { data } = await supabase
+      // Buscar empleado por email
+      const { data, error } = await supabase
         .from('employees')
         .select('id')
         .eq('email', user.email)
-        .single()
-      setEmployeeId(data?.id ?? null)
-      setLoading(false)
-    }
-    if (user) fetchEmployee()
+        .single();
+      if (data?.id) {
+        setEmployeeId(data.id);
+        setLoading(false);
+        return;
+      }
+      // Si no existe, crear registro básico
+      const { data: newEmployee, error: insertError } = await supabase
+        .from('employees')
+        .insert([
+          {
+            email: user.email,
+            first_name: user.user_metadata?.first_name || '',
+            last_name: user.user_metadata?.last_name || '',
+            role: 'employee',
+            employee_type: 'employee',
+            status: 'active',
+            ready_for_payroll: false,
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select('id')
+        .single();
+      if (newEmployee?.id) {
+        setEmployeeId(newEmployee.id);
+      }
+      setLoading(false);
+    };
+    if (user) fetchOrCreateEmployee();
   }, [user])
 
   if (loading) return <p>Cargando...</p>
