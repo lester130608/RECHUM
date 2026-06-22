@@ -67,7 +67,7 @@ export async function POST(
     console.log(`Starting calculation for pay run ${payRunId}...`);
 
     // Run the calculation using the payroll engine
-    const result = await applyPayrollRunCalculation(payRunId, user.id);
+    const result = await applyPayrollRunCalculation(payRunId, supabase, user.id);
 
     if (!result.success) {
       const hasErrors = result.issues.some(issue => issue.type === 'error');
