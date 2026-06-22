@@ -79,7 +79,19 @@ export default function PayrollRunsPage() {
 
   const fetchPayRuns = async () => {
     try {
-      const response = await fetch('/api/payroll/runs');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Auth session missing. Please log in again.');
+      }
+
+      const response = await fetch('/api/payroll/runs', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
       const data = await response.json();
 
       if (!response.ok) {
@@ -99,9 +111,20 @@ export default function PayrollRunsPage() {
     setCreating(true);
     
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Auth session missing. Please log in again.');
+      }
+
       const response = await fetch('/api/payroll/runs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           week_ending: newWeekEnding,
           notes: newNotes

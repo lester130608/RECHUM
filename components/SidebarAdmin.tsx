@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useUser } from "@/hooks/useUser";
 
 export default function SidebarAdmin() {
   const [showHR, setShowHR] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const { hasPermission } = useUser();
 
   return (
     <aside
@@ -25,7 +27,29 @@ export default function SidebarAdmin() {
       <nav>
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           <li style={linkItem}>
-            <Link href="/dashboard/payroll" style={linkStyle}>Payroll</Link>
+            <Link href="/payroll/runs" style={linkStyle}>Pay Runs</Link>
+          </li>
+
+          {hasPermission("manage_employees") && (
+            <>
+              <li style={linkItem}>
+                <Link href="/payroll/emp" style={linkStyle}>
+                  Employee History <span style={badgeStyle}>Read-only</span>
+                </Link>
+              </li>
+              <li style={linkItem}>
+                <Link href="/payroll/owner" style={linkStyle}>
+                  Owner Summary <span style={badgeStyle}>Read-only</span>
+                </Link>
+              </li>
+              <li style={linkItem}>
+                <Link href="/admin/pay-configuration" style={linkStyle}>Pay Configuration</Link>
+              </li>
+            </>
+          )}
+          
+          <li style={linkItem}>
+            <Link href="/dashboard" style={linkStyle}>Dashboard</Link>
           </li>
 
           <li style={linkItem}>
@@ -81,4 +105,10 @@ const subLinkStyle = {
   ...linkStyle,
   padding: "4px 0",
   fontSize: "0.85rem",
+};
+
+const badgeStyle = {
+  color: "#6b7280",
+  fontSize: "0.7rem",
+  marginLeft: "0.25rem",
 };

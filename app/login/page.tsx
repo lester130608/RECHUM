@@ -42,7 +42,7 @@ export default function Login() {
     const role = userRow?.role
 
     if (role === 'admin') {
-      window.location.href = '/dashboard'
+      window.location.href = '/payroll/runs'
     } else {
       alert('Access denied. Only admins can access esta sección.')
     }

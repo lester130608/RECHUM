@@ -26,7 +26,7 @@ type NavItem = {
   label: string;
   href?: string;
   icon: any;
-  children?: { label: string; href: string; icon?: any; requiresPermission?: string }[];
+  children?: { label: string; href: string; icon?: any; requiresPermission?: string; readOnly?: boolean }[];
 };
 
 export default function SidebarV2() {
@@ -45,14 +45,14 @@ export default function SidebarV2() {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   const nav: NavItem[] = [
-    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Dashboard", href: "/payroll/runs", icon: LayoutDashboard },
     {
       label: "Payroll",
       icon: Wallet,
       children: [
         { label: "Pay Runs", href: "/payroll/runs", icon: Wallet },
-        { label: "Employee History", href: "/payroll/emp", icon: History, requiresPermission: "manage_employees" },
-        { label: "Owner Summary", href: "/payroll/owner", icon: Archive, requiresPermission: "manage_employees" },
+        { label: "Employee History", href: "/payroll/emp", icon: History, requiresPermission: "manage_employees", readOnly: true },
+        { label: "Owner Summary", href: "/payroll/owner", icon: Archive, requiresPermission: "manage_employees", readOnly: true },
       ],
     },
     {
@@ -115,6 +115,7 @@ export default function SidebarV2() {
                         >
                           {ChildIcon && <ChildIcon size={14} className="sidebar-link-icon" />}
                           <span className="sidebar-link-label">{child.label}</span>
+                          {child.readOnly && <span className="sidebar-badge">Read-only</span>}
                         </Link>
                       );
                     })}
@@ -221,6 +222,11 @@ export default function SidebarV2() {
         }
         .sidebar-link-label {
           flex: 1;
+        }
+        .sidebar-badge {
+          color: var(--color-text-tertiary);
+          font-size: var(--text-xs);
+          font-weight: 500;
         }
         .sidebar-group {
           color: var(--color-text-tertiary);
