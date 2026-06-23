@@ -1,5 +1,4 @@
--- Migration: Add ADP fields to employees table
--- Run this in Supabase SQL Editor after the main migration
+-- Migration 0002: Add ADP fields to employees table
 -- Date: March 2, 2026
 
 -- ===============================================
@@ -33,40 +32,3 @@ FROM information_schema.columns
 WHERE table_name = 'employees' 
 AND table_schema = 'public'
 ORDER BY ordinal_position;
-
--- ===============================================
--- PROFILES TABLE CHECK
--- ===============================================
-
--- Verify that profiles table exists for RLS policies
--- If it doesn't exist, you may need to adapt the RLS policies
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_name = 'profiles' 
-AND table_schema = 'public';
-
--- If profiles table doesn't exist, you can either:
--- 1. Create it with role field, or
--- 2. Adapt RLS policies to use auth.users metadata or another role system
-
--- Example profiles table structure (run only if needed):
-/*
-CREATE TABLE IF NOT EXISTS profiles (
-    id uuid REFERENCES auth.users(id) PRIMARY KEY,
-    email text,
-    role text NOT NULL DEFAULT 'employee' CHECK (role IN ('employee', 'supervisor', 'ba', 'admin')),
-    first_name text,
-    last_name text,
-    created_at timestamptz DEFAULT now() NOT NULL
-);
-
--- Enable RLS
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
--- Basic profile policies
-CREATE POLICY "Users can view own profile" ON profiles
-FOR SELECT USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile" ON profiles
-FOR UPDATE USING (auth.uid() = id);
-*/
