@@ -11,6 +11,40 @@ type RoleCheckError = {
   error: string;
 };
 
+export const REAL_PAYROLL_ROLES = [
+  'owner',
+  'supervisor_ba',
+  'supervisor_cmhc',
+  'supervisor_tcm',
+] as const;
+
+export const SUPERVISOR_ROLES = [
+  'supervisor_ba',
+  'supervisor_cmhc',
+  'supervisor_tcm',
+] as const;
+
+export type PayrollRole = (typeof REAL_PAYROLL_ROLES)[number];
+export type PayrollArea = 'BA' | 'CMHC' | 'TCM' | 'PSYQ' | 'GENERAL';
+
+const ROLE_TO_AREA: Record<(typeof SUPERVISOR_ROLES)[number], PayrollArea> = {
+  supervisor_ba: 'BA',
+  supervisor_cmhc: 'CMHC',
+  supervisor_tcm: 'TCM',
+};
+
+export function normalizeRole(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export function normalizeArea(value: string): PayrollArea | null {
+  const area = value.trim().toUpperCase();
+  if (['BA', 'CMHC', 'TCM', 'PSYQ', 'GENERAL'].includes(area)) {
+    return area as PayrollArea;
+  }
+  return null;
+}
+
 export async function getUserRoleContext(supabase: any): Promise<RoleCheckSuccess | RoleCheckError> {
   const {
     data: { user },
@@ -66,7 +100,7 @@ export async function getUserRoleContext(supabase: any): Promise<RoleCheckSucces
   const roleCodes = (roles || [])
     .flatMap((role: { code?: string | null; name?: string | null }) => [role.code, role.name])
     .filter((value): value is string => typeof value === 'string' && value.length > 0)
-    .map((value) => value.toLowerCase());
+    .map(normalizeRole);
 
   return {
     ok: true,
@@ -77,8 +111,31 @@ export async function getUserRoleContext(supabase: any): Promise<RoleCheckSucces
 }
 
 export function hasAnyRole(roleCodes: string[], allowedRoles: string[]) {
-  const allowed = allowedRoles.map((value) => value.toLowerCase());
-  return roleCodes.some((role) => allowed.includes(role));
+  const allowed = allowedRoles.map(normalizeRole);
+  return roleCodes.map(normalizeRole).some((role) => allowed.includes(role));
+}
+
+export function isOwner(roleCodes: string[]) {
+  return hasAnyRole(roleCodes, ['owner']);
+}
+
+export function getSupervisedAreas(roleCodes: string[]): PayrollArea[] {
+  if (isOwner(roleCodes)) {
+    return ['BA', 'CMHC', 'TCM', 'PSYQ', 'GENERAL'];
+  }
+
+  return SUPERVISOR_ROLES
+    .filter((role) => hasAnyRole(roleCodes, [role]))
+    .map((role) => ROLE_TO_AREA[role]);
+}
+
+export function canAccessPayrollArea(roleCodes: string[], area: string) {
+  const normalizedArea = normalizeArea(area);
+  if (!normalizedArea) {
+    return false;
+  }
+
+  return getSupervisedAreas(roleCodes).includes(normalizedArea);
 }
 
 export async function requireAnyRole(supabase: any, allowedRoles: string[]): Promise<RoleCheckSuccess | RoleCheckError> {

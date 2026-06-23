@@ -13,7 +13,7 @@ export async function POST(
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'admin']);
+    const auth = await requireAnyRole(supabase, ['owner']);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
@@ -129,14 +129,14 @@ export async function POST(
   }
 }
 
-// DELETE: Emergency unlock (admin only, requires confirmation)
+// DELETE: Emergency unlock (owner only, requires confirmation)
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'admin']);
+    const auth = await requireAnyRole(supabase, ['owner']);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }

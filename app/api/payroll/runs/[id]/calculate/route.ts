@@ -4,8 +4,8 @@
 
 import { NextResponse } from 'next/server';
 import { applyPayrollRunCalculation } from '@/lib/payrollEngine';
-import { requirePermission } from '@/lib/auth/permissions';
 import { createServerSupabase } from '@/lib/supabase/server';
+import { requireAnyRole } from '@/lib/auth/roleAccess';
 
 // POST: Run payroll calculation
 export async function POST(
@@ -14,19 +14,9 @@ export async function POST(
 ) {
   try {
     const supabase = await createServerSupabase();
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const permission = await requirePermission(supabase, 'payroll.calculate');
-    if (!permission.ok) {
-      return NextResponse.json({ error: permission.error }, { status: permission.status });
+    const auth = await requireAnyRole(supabase, ['owner']);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     const payRunId = params.id;
@@ -67,7 +57,7 @@ export async function POST(
     console.log(`Starting calculation for pay run ${payRunId}...`);
 
     // Run the calculation using the payroll engine
-    const result = await applyPayrollRunCalculation(payRunId, supabase, user.id);
+    const result = await applyPayrollRunCalculation(payRunId, supabase, auth.userId);
 
     if (!result.success) {
       const hasErrors = result.issues.some(issue => issue.type === 'error');

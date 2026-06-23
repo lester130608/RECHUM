@@ -4,7 +4,12 @@
 
 import { NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { requireAnyRole, hasAnyRole } from '@/lib/auth/roleAccess';
+import {
+  REAL_PAYROLL_ROLES,
+  canAccessPayrollArea,
+  normalizeArea,
+  requireAnyRole,
+} from '@/lib/auth/roleAccess';
 
 // GET: List payroll inputs for a pay run
 export async function GET(
@@ -13,7 +18,7 @@ export async function GET(
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'admin', 'hr', 'supervisor', 'ba']);
+    const auth = await requireAnyRole(supabase, [...REAL_PAYROLL_ROLES]);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
@@ -25,11 +30,6 @@ export async function GET(
       .from('payroll_inputs')
       .select('*')
       .eq('pay_run_id', payRunId);
-
-    // Supervisors can only see their own inputs
-    if (hasAnyRole(auth.roleCodes, ['supervisor', 'ba']) && !hasAnyRole(auth.roleCodes, ['owner', 'admin', 'hr'])) {
-      query = query.eq('submitted_by', auth.userId);
-    }
 
     const { data: inputs, error } = await query.order('submitted_at', { ascending: false });
 
@@ -53,14 +53,15 @@ export async function POST(
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'admin', 'supervisor', 'ba']);
+    const auth = await requireAnyRole(supabase, [...REAL_PAYROLL_ROLES]);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     const payRunId = params.id;
     const body = await request.json();
-    const { department, payload } = body;
+    const department = normalizeArea(body.department ?? '');
+    const { payload } = body;
 
     // Validate required fields
     if (!department || !payload) {
@@ -77,10 +78,14 @@ export async function POST(
       }, { status: 400 });
     }
 
+    if (!canAccessPayrollArea(auth.roleCodes, department)) {
+      return NextResponse.json({ error: 'Insufficient permissions for payroll area' }, { status: 403 });
+    }
+
     // Check if pay run exists and is not locked
     const { data: payRun, error: payRunError } = await supabase
       .from('pay_runs')
-      .select('status')
+      .select('status, area, run_level')
       .eq('id', payRunId)
       .single();
 
@@ -92,6 +97,10 @@ export async function POST(
       return NextResponse.json({ 
         error: 'Cannot submit inputs to exported or locked pay run' 
       }, { status: 403 });
+    }
+
+    if (payRun.run_level !== 'area' || payRun.area !== department) {
+      return NextResponse.json({ error: 'Payroll input department must match the area run' }, { status: 400 });
     }
 
     // Check if user already submitted for this department and pay run

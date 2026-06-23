@@ -13,7 +13,7 @@ export async function POST(
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'admin']);
+    const auth = await requireAnyRole(supabase, ['owner']);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
@@ -77,9 +77,9 @@ export async function POST(
     const { data: approvedPayRun, error: approveError } = await supabase
       .from('pay_runs')
       .update({
-        status: 'approved',
-        approved_by: auth.userId,
-        approved_at: new Date().toISOString()
+        status: 'owner_approved',
+        owner_approved_by: auth.userId,
+        owner_approved_at: new Date().toISOString()
       })
       .eq('id', payRunId)
       .select()
@@ -111,8 +111,8 @@ export async function POST(
         action: 'approve',
         before_data: { status: payRun.status },
         after_data: { 
-          status: 'approved', 
-          approved_by: auth.userId,
+          status: 'owner_approved',
+          owner_approved_by: auth.userId,
           totals 
         },
         actor_id: auth.userId

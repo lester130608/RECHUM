@@ -14,7 +14,7 @@ export async function GET(
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'admin']);
+    const auth = await requireAnyRole(supabase, ['owner']);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
@@ -32,9 +32,9 @@ export async function GET(
       return NextResponse.json({ error: 'Pay run not found' }, { status: 404 });
     }
 
-    if (!['approved'].includes(payRun.status)) {
+    if (!['owner_approved'].includes(payRun.status)) {
       return NextResponse.json({ 
-        error: `Cannot export pay run with status: ${payRun.status}. Must be approved first.` 
+        error: `Cannot export pay run with status: ${payRun.status}. Must be owner_approved first.`
       }, { status: 400 });
     }
 
@@ -144,7 +144,7 @@ export async function POST(
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'admin', 'ba']);
+    const auth = await requireAnyRole(supabase, ['owner']);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }

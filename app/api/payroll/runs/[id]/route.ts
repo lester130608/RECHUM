@@ -4,7 +4,7 @@
 
 import { NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { requireAnyRole } from '@/lib/auth/roleAccess';
+import { REAL_PAYROLL_ROLES, isOwner, requireAnyRole } from '@/lib/auth/roleAccess';
 
 // GET: Get pay run details
 export async function GET(
@@ -13,7 +13,7 @@ export async function GET(
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'hr', 'admin']);
+    const auth = await requireAnyRole(supabase, [...REAL_PAYROLL_ROLES]);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
@@ -21,33 +21,61 @@ export async function GET(
     const payRunId = params.id;
 
     // Get pay run with detailed information
+    const owner = isOwner(auth.roleCodes);
+    const selectClause = owner
+      ? `
+          *,
+          pay_periods (
+            id,
+            week_code,
+            start_date,
+            end_date,
+            pay_date
+          ),
+          pay_run_items (
+            id,
+            worker_id,
+            status,
+            calc_total_hours,
+            calc_total_amount,
+            exceptions_count,
+            employees (
+              id,
+              first_name,
+              last_name,
+              full_name,
+              email
+            )
+          ),
+          payroll_inputs (
+            id,
+            department,
+            submitted_by,
+            submitted_at,
+            status
+          )
+        `
+      : `
+          *,
+          pay_periods (
+            id,
+            week_code,
+            start_date,
+            end_date,
+            pay_date
+          ),
+          payroll_inputs (
+            id,
+            department,
+            submitted_by,
+            submitted_at,
+            status
+          )
+        `;
+
     const { data: payRun, error } = await supabase
       .from('pay_runs')
-      .select(`
-        *,
-        pay_run_items (
-          id,
-          worker_id,
-          status,
-          calc_total_hours,
-          calc_total_amount,
-          exceptions_count,
-          employees (
-            id,
-            first_name,
-            last_name,
-            full_name,
-            email
-          )
-        ),
-        payroll_inputs (
-          id,
-          department,
-          submitted_by,
-          submitted_at,
-          status
-        )
-      `)
+      .select(selectClause)
       .eq('id', payRunId)
       .single();
 
@@ -60,7 +88,7 @@ export async function GET(
     const totals = {
       total_workers: items.length,
       total_hours: items.reduce((sum: number, item: any) => sum + (item.calc_total_hours || 0), 0),
-      total_amount: items.reduce((sum: number, item: any) => sum + (item.calc_total_amount || 0), 0),
+      ...(owner ? { total_amount: items.reduce((sum: number, item: any) => sum + (item.calc_total_amount || 0), 0) } : {}),
       total_exceptions: items.reduce((sum: number, item: any) => sum + (item.exceptions_count || 0), 0),
       by_status: items.reduce((acc: any, item: any) => {
         acc[item.status] = (acc[item.status] || 0) + 1;
@@ -87,6 +115,7 @@ export async function GET(
 
     const response = {
       ...payRun,
+      ...(owner ? {} : { pay_run_items: [] }),
       totals,
       by_department
     };
@@ -106,7 +135,7 @@ export async function PATCH(
 ) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner', 'admin']);
+    const auth = await requireAnyRole(supabase, ['owner']);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }

@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { hasAnyRole } from '@/lib/auth/roleAccess';
 
 const supabaseAdmin = getSupabaseAdmin();
 
@@ -42,31 +43,35 @@ export async function createAuthResponse(allowedRoles: string[] = []) {
     };
   }
 
-  let { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', session.user.id)
-    .single();
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('user_id', session.user.id)
+    .maybeSingle();
 
-  if (!profile && session.user.email) {
-    const { data: userProfile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('email', session.user.email.toLowerCase())
-      .single();
+  let roleCodes: string[] = [];
 
-    profile = userProfile;
+  if (employee) {
+    const { data: userRoles } = await supabase
+      .from('user_roles')
+      .select('roles(code, name)')
+      .eq('employee_id', employee.id)
+      .eq('active', true);
+
+    roleCodes = (userRoles || [])
+      .flatMap((row: any) => [row.roles?.code, row.roles?.name])
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .map((value) => value.toLowerCase());
   }
 
-  const role = profile?.role;
   const isAuthorized =
     allowedRoles.length === 0 ||
-    (typeof role === 'string' && allowedRoles.includes(role));
+    hasAnyRole(roleCodes, allowedRoles);
 
   return {
     isAuthorized,
     user: session.user,
-    profile,
+    profile: employee ? { employee_id: employee.id, roles: roleCodes } : null,
     supabase: supabaseAdmin
   };
 }
