@@ -12,6 +12,9 @@ import {
   normalizeArea,
   requireAnyRole,
 } from '@/lib/auth/roleAccess';
+import { redactPayrollMoneyForRole } from '@/lib/payrollVisibility';
+
+const FLORIDA_TIME_ZONE = 'America/New_York';
 
 interface PayRunItemSummary {
   calc_total_hours?: number | null;
@@ -72,6 +75,12 @@ export async function GET() {
             start_date,
             end_date,
             pay_date
+          ),
+          pay_run_items (
+            id,
+            calc_total_hours,
+            exceptions_count,
+            status
           )
         `;
 
@@ -117,7 +126,9 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ pay_runs: payRunsWithTotals });
+    return NextResponse.json({
+      pay_runs: redactPayrollMoneyForRole(payRunsWithTotals, auth.roleCodes)
+    });
 
   } catch (error) {
     console.error('GET /api/payroll/runs error:', error);
@@ -182,10 +193,11 @@ export async function POST(request: Request) {
     }
 
     if (!isOwner(auth.roleCodes)) {
-      // TODO Step 5: calculate "today" in America/New_York and compare as dates,
-      // not UTC ISO strings, so the capture window does not close early near midnight.
-      const today = new Date().toISOString().slice(0, 10);
-      if (today < period.capture_opens_at || today > period.sup_deadline) {
+      const today = dateKeyToDayNumber(getDateKeyInTimeZone(new Date(), FLORIDA_TIME_ZONE));
+      const captureOpens = dateKeyToDayNumber(period.capture_opens_at);
+      const supervisorDeadline = dateKeyToDayNumber(period.sup_deadline);
+
+      if (today < captureOpens || today > supervisorDeadline) {
         return NextResponse.json({ error: 'Supervisor capture window is closed for this pay period' }, { status: 403 });
       }
     }
@@ -240,4 +252,28 @@ export async function POST(request: Request) {
     console.error('POST /api/payroll/runs error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+function getDateKeyInTimeZone(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  if (!year || !month || !day) {
+    throw new Error('Failed to calculate local date');
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function dateKeyToDayNumber(dateKey: string) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
 }
