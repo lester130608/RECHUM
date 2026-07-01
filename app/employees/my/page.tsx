@@ -20,12 +20,13 @@ import ApplicationSignatureSection from '@/components/forms/ApplicationSignature
 import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export default function MyEmployeePage() {
-  const user = useSupabaseUser();
+  const { user, loading: userLoading } = useSupabaseUser();
   const [employeeId, setEmployeeId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchOrCreateEmployee = async () => {
+      if (userLoading) return;
       if (!user?.email) return;
       // Buscar empleado por email
       const { data, error } = await supabase
@@ -60,10 +61,15 @@ export default function MyEmployeePage() {
       }
       setLoading(false);
     };
-    if (user) fetchOrCreateEmployee();
-  }, [user])
+    if (!userLoading && user) {
+      fetchOrCreateEmployee();
+    }
+    if (!userLoading && !user) {
+      setLoading(false);
+    }
+  }, [user, userLoading])
 
-  if (loading) return <p>Cargando...</p>
+  if (userLoading || loading) return <p>Cargando...</p>
   if (!user || !employeeId) return <p>No tienes permiso para acceder a esta página.</p>
 
   return (

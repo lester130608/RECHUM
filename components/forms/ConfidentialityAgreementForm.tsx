@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function ConfidentialityAgreementForm({ employeeId }: Props) {
-  const user = useSupabaseUser();
+  const { user, loading: userLoading } = useSupabaseUser();
   const [signature, setSignature] = useState('')
   const [signedDate, setSignedDate] = useState('')
   const [locked, setLocked] = useState(false)
@@ -17,6 +17,7 @@ export default function ConfidentialityAgreementForm({ employeeId }: Props) {
 
   useEffect(() => {
     const fetch = async () => {
+      if (userLoading) return;
       if (!user) return;
       const { data } = await supabase
         .from('confidentiality_agreements')
@@ -34,7 +35,7 @@ export default function ConfidentialityAgreementForm({ employeeId }: Props) {
     }
 
     fetch()
-  }, [employeeId, user])
+  }, [employeeId, user, userLoading])
 
   const handleSave = async () => {
     const today = new Date().toISOString().split('T')[0]

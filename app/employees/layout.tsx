@@ -6,12 +6,14 @@ import BackButton from "@/components/BackButton";
 import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export default function EmployeesLayout({ children }: { children: React.ReactNode }) {
-  const user = useSupabaseUser();
+  const { user, loading } = useSupabaseUser();
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) setEmail(user.email ?? null);
   }, [user]);
+
+  if (loading) return <p>Cargando...</p>;
 
   // Evita mostrar contenido hasta que haya sesión
   if (!email) return null;

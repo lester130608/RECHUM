@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabaseClient'
 import AdminUploadDocument from '@/components/AdminUploadDocument'
 import EmployeeDocumentsStatus from '@/components/EmployeeDocumentsStatus'
 
 export default function EditEmployeePage() {
   const router = useRouter()
-  const { id } = useParams()
-  const employeeId = id as string
+  const params = useParams();
+  // Next.js 13+ useParams puede devolver string | string[] | undefined
+  const employeeId = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : '';
 
   const [form, setForm] = useState({
     first_name: '',
@@ -22,32 +23,47 @@ export default function EditEmployeePage() {
   })
 
   const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    const fetchEmployee = async () => {
-      const { data } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('id', employeeId)
-        .single()
-
-      if (data) {
-        setForm({
-          first_name: data.first_name || '',
-          last_name: data.last_name || '',
-          email: data.email || '',
-          rate: data.rate?.toString() || '',
-          role: data.role || '',
-          employment_type: data.employment_type || '',
-          status: data.status || 'active',
-        })
-      }
-
-      setLoading(false)
+    if (!employeeId) {
+      setErrorMsg("Error: Falta el parámetro 'id' en la URL.");
+      setLoading(false);
+      return;
     }
-
-    fetchEmployee()
-  }, [employeeId])
+    const fetchEmployee = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('id', employeeId)
+          .single();
+        if (error) {
+          setErrorMsg("Error al cargar empleado: " + error.message);
+          setNotFound(true);
+        } else if (!data) {
+          setErrorMsg("Empleado no encontrado.");
+          setNotFound(true);
+        } else {
+          setForm({
+            first_name: data.first_name || '',
+            last_name: data.last_name || '',
+            email: data.email || '',
+            rate: data.rate?.toString() || '',
+            role: data.role || '',
+            employment_type: data.employment_type || '',
+            status: data.status || 'active',
+          });
+        }
+      } catch (err: any) {
+        setErrorMsg("Error inesperado: " + (err?.message || err));
+        setNotFound(true);
+      }
+      setLoading(false);
+    }
+    fetchEmployee();
+  }, [employeeId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -73,7 +89,9 @@ export default function EditEmployeePage() {
     }
   }
 
-  if (loading) return <p className="p-4">Loading...</p>
+
+  if (loading) return <p className="p-4 animate-pulse text-gray-500">Cargando empleado...</p>;
+  if (errorMsg) return <div style={{color: 'red', padding: '1rem', border: '1px solid #f59e42', borderRadius: 8, background: '#fffbe9'}}>{errorMsg}</div>;
 
   return (
     <div className="container">

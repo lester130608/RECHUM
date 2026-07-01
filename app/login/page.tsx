@@ -7,49 +7,26 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [debug, setDebug] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
-    setDebug(null)
-    console.log('SUBMIT', email, password)
 
-    const { error, data } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        subscription.unsubscribe()
+        window.location.assign('/payroll/runs')
+      }
     })
 
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
     if (error) {
-      console.log('LOGIN ERROR:', error)
-      setDebug(`LOGIN ERROR: ${JSON.stringify(error)}`)
+      subscription.unsubscribe()
       alert('Login failed. Please check your credentials.')
       setLoading(false)
-      return
     }
-
-    setDebug(`LOGIN OK: ${JSON.stringify(data)}`)
-
-    const { data: userRow, error: userError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('email', email.toLowerCase())
-      .single()
-
-    console.log('DEBUG userRow:', userRow, 'role:', userRow?.role, 'email:', email, 'userError:', userError)
-    setDebug(prev => (prev || '') + `\nuserRow: ${JSON.stringify(userRow)}, userError: ${JSON.stringify(userError)}`)
-
-    const role = userRow?.role
-
-    if (role === 'admin') {
-      window.location.href = '/payroll/runs'
-    } else {
-      alert('Access denied. Only admins can access esta sección.')
-    }
-    setLoading(false)
   }
-
-  console.log('Login component rendered')
 
   return (
     <div className="login-wrapper">
@@ -103,11 +80,6 @@ export default function Login() {
             </a>
           </div>
         </form>
-        {debug && (
-          <pre style={{ background: '#eee', color: '#b91c1c', padding: 12, marginTop: 16, fontSize: 12 }}>
-            {debug}
-          </pre>
-        )}
 
         <p className="text-xs text-center text-gray-400 mt-6">
           © 2025 DTT Coaching Services, LLC.

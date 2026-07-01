@@ -3,34 +3,38 @@ import { supabase } from '@/lib/supabaseClient'
 
 export interface SupabaseUser {
   id: string;
-  aud: string;
   email: string | null;
-  phone: string | null;
-  app_metadata: Record<string, any>;
-  user_metadata: Record<string, any>;
-  created_at: string;
-  email_confirmed_at: string | null;
-  phone_confirmed_at: string | null;
-  last_sign_in_at: string | null;
-  role: string;
-  updated_at: string;
+  [key: string]: any;
 }
 
 export function useSupabaseUser() {
   const [user, setUser] = useState<SupabaseUser | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser()
-      setUser(data.user as SupabaseUser)
+    let mounted = true
+
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (mounted) {
+        setUser((session?.user as SupabaseUser) ?? null)
+        setLoading(false)
+      }
     }
-    getUser()
-    // Escucha cambios de sesión
-    const { data: listener } = supabase.auth.onAuthStateChange(() => getUser())
+    init()
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUser((session?.user as SupabaseUser) ?? null)
+        setLoading(false)
+      }
+    })
+
     return () => {
+      mounted = false
       listener?.subscription.unsubscribe()
     }
   }, [])
 
-  return user
+  return { user, loading }
 }

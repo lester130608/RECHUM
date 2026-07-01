@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { useUser } from "@/hooks/useUser";
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
+  const { hasPermission } = useUser();
 
   useEffect(() => {
     const fetchEmployees = async () => {
@@ -90,6 +92,11 @@ export default function EmployeesPage() {
                 <Link href={`/employees/${employee.id}`}>
                   <button className="text-blue-500 hover:underline ml-2">Edit</button>
                 </Link>
+                {hasPermission("manage_employees") && (
+                  <Link href={`/admin/pay-configuration/${employee.id}`}>
+                    <button className="text-blue-500 hover:underline ml-2">Pay Config</button>
+                  </Link>
+                )}
               </td>
             </tr>
           ))}

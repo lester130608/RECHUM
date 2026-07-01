@@ -10,7 +10,9 @@ const nextConfig = {
     return config;
   },
   experimental: {
-    turbo: true,
+    turbo: {
+      rules: {}
+    },
   },
   eslint: {
     ignoreDuringBuilds: true,

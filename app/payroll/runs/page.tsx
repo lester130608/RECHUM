@@ -71,7 +71,7 @@ const statusLabels: Record<PayRun['status'], string> = {
 };
 
 export default function PayrollRunsPage() {
-  const user = useSupabaseUser();
+  const { user, loading: userLoading } = useSupabaseUser();
   const [payRuns, setPayRuns] = useState<PayRun[]>([]);
   const [context, setContext] = useState<PayrollContext | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,13 +84,17 @@ export default function PayrollRunsPage() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
+    if (userLoading) {
+      return;
+    }
+
     if (!user) {
       setLoading(false);
       return;
     }
 
     void loadPageData();
-  }, [user]);
+  }, [user, userLoading]);
 
   const areaOptions = useMemo(() => {
     if (!context) {
@@ -213,6 +217,17 @@ export default function PayrollRunsPage() {
 
     return `${period.week_code} (${formatDate(period.start_date)} - ${formatDate(period.end_date)})`;
   };
+
+  if (userLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading user session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

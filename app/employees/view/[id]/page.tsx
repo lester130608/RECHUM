@@ -3,19 +3,45 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import EmployeeDocumentsList from '@/components/EmployeeDocumentsList';
+import EmployeeWizardW2 from '@/components/EmployeeWizardW2';
 
 export default function ViewEmployeePage() {
-  const { id } = useParams();
+  const params = useParams();
+  // Protección robusta para params y id
+  const debug = false;
+  if (!params || !params.id) {
+    return <div style={{color: 'red', padding: 24}}>Error: No se encontró el ID del empleado. Por favor, regresa e inténtalo de nuevo.</div>;
+  }
+  const id = Array.isArray(params.id) ? params.id[0] : params.id as string;
   const [employee, setEmployee] = useState<any>(null);
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
     const fetchEmployee = async () => {
-      const { data } = await supabase.from("employees").select("*").eq("id", id).single();
-      setEmployee(data);
+      setFetching(true);
+      try {
+        const { data, error } = await supabase.from("employees").select("*").eq("id", id).single();
+        if (error || !data) {
+          setErrorMsg("No se pudo cargar el empleado. " + (error?.message || "No encontrado"));
+          setEmployee(null);
+        } else {
+          setEmployee(data);
+        }
+      } catch (err: any) {
+        setErrorMsg("Error inesperado: " + (err?.message || err));
+        setEmployee(null);
+      } finally {
+        setFetching(false);
+      }
     };
     fetchEmployee();
   }, [id]);
 
+
+  // ...existing code...
+  if (errorMsg) return <div style={{color: 'red', padding: 24}}>{errorMsg}</div>;
   if (!employee) return <p className="p-4">Loading...</p>;
 
   return (
@@ -29,6 +55,14 @@ export default function ViewEmployeePage() {
         <p><strong>Status:</strong> {employee.status}</p>
         <p><strong>Rate:</strong> ${employee.rate}</p>
         <p><strong>Employment Type:</strong> {employee.employment_type}</p>
+      </div>
+
+      {/* Documentos del empleado */}
+      <EmployeeDocumentsList employeeId={employee.id} />
+
+      {/* Wizard de onboarding */}
+      <div style={{ marginTop: "2rem" }}>
+        <EmployeeWizardW2 />
       </div>
 
       <div style={{ marginTop: "2rem" }}>

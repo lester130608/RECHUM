@@ -6,12 +6,17 @@ import SidebarAdmin from './SidebarAdmin'
 import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = useSupabaseUser();
+  const { user, loading } = useSupabaseUser();
   const [role, setRole] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [roleLoading, setRoleLoading] = useState(true)
 
   useEffect(() => {
     const fetchRole = async () => {
+      if (loading) return;
+      if (!user) {
+        setRoleLoading(false);
+        return;
+      }
       if (!user?.email) return;
       const { data } = await supabase
         .from('employees')
@@ -19,12 +24,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         .eq('email', user.email)
         .single();
       setRole(data?.role ?? null);
-      setLoading(false);
+      setRoleLoading(false);
     };
-    if (user) fetchRole();
-  }, [user]);
+    fetchRole();
+  }, [user, loading]);
 
-  if (loading) return <p>Cargando...</p>;
+  if (loading || roleLoading) return <p>Cargando...</p>;
   if (!user || role !== 'admin') return <p>No tienes permiso para acceder a esta página.</p>;
 
   return (

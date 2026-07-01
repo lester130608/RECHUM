@@ -10,6 +10,7 @@ import {
   normalizeArea,
   requireAnyRole,
 } from '@/lib/auth/roleAccess';
+import { redactPayrollMoneyForRole } from '@/lib/payrollVisibility';
 
 // GET: List payroll inputs for a pay run
 export async function GET(
@@ -38,7 +39,9 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch payroll inputs' }, { status: 500 });
     }
 
-    return NextResponse.json({ inputs: inputs || [] });
+    return NextResponse.json({
+      inputs: redactPayrollMoneyForRole(inputs || [], auth.roleCodes)
+    });
 
   } catch (error: any) {
     console.error('GET /api/payroll/runs/[id]/inputs error:', error);

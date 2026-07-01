@@ -74,7 +74,7 @@ export default function PayrollReviewPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const user = useSupabaseUser();
+  const { user, loading: userLoading } = useSupabaseUser();
   const payRunId = params?.id as string;
   const selectedWorkerId = searchParams?.get('worker');
   
@@ -93,12 +93,12 @@ export default function PayrollReviewPage() {
   const [actionLoading, setActionLoading] = useState<string>('');
 
   useEffect(() => {
-    if (user && payRunId) {
+    if (!userLoading && user && payRunId) {
       fetchUserRole();
       fetchPayRun();
       fetchPayRunItems();
     }
-  }, [user, payRunId]);
+  }, [user, payRunId, userLoading]);
 
   useEffect(() => {
     if (selectedWorkerId && payRunItems.length > 0) {
@@ -245,6 +245,17 @@ export default function PayrollReviewPage() {
   const getIssueColor = (type: string) => {
     return type === 'error' ? 'text-red-600' : 'text-yellow-600';
   };
+
+  if (userLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading user session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

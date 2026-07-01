@@ -49,7 +49,7 @@ const defaultServiceCodes: ServiceCode[] = [
 export default function PayrollInputPage() {
   const params = useParams();
   const router = useRouter();
-  const user = useSupabaseUser();
+  const { user, loading: userLoading } = useSupabaseUser();
   const payRunId = params?.id as string;
   
   const [loading, setLoading] = useState(true);
@@ -67,13 +67,13 @@ export default function PayrollInputPage() {
   const [userRole, setUserRole] = useState<string>('');
 
   useEffect(() => {
-    if (user && payRunId) {
+    if (!userLoading && user && payRunId) {
       fetchUserRole();
       fetchPayRun();
       fetchWorkers();
       addEmptyRow(); // Start with one empty row
     }
-  }, [user, payRunId]);
+  }, [user, payRunId, userLoading]);
 
   const fetchUserRole = async () => {
     try {
@@ -245,6 +245,17 @@ export default function PayrollInputPage() {
     const serviceCode = serviceCodes.find(sc => sc.code === code);
     return serviceCode?.pay_method || 'hourly';
   };
+
+  if (userLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading user session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function ApplicationPersonalSection({ employeeId }: Props) {
-  const user = useSupabaseUser();
+  const { user, loading: userLoading } = useSupabaseUser();
   const [form, setForm] = useState({
     full_name: '',
     address: '',
@@ -26,6 +26,7 @@ export default function ApplicationPersonalSection({ employeeId }: Props) {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (userLoading) return;
       if (!user) return;
       const { data, error } = await supabase
         .from('employment_applications')
@@ -38,7 +39,7 @@ export default function ApplicationPersonalSection({ employeeId }: Props) {
     }
 
     fetchData()
-  }, [employeeId, user])
+  }, [employeeId, user, userLoading])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type, checked } = e.target

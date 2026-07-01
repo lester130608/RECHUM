@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { REAL_PAYROLL_ROLES, isOwner, requireAnyRole } from '@/lib/auth/roleAccess';
+import { redactPayrollMoneyForRole } from '@/lib/payrollVisibility';
 
 // GET: Get pay run details
 export async function GET(
@@ -120,7 +121,7 @@ export async function GET(
       by_department
     };
 
-    return NextResponse.json(response);
+    return NextResponse.json(redactPayrollMoneyForRole(response, auth.roleCodes));
 
   } catch (error: any) {
     console.error('GET /api/payroll/runs/[id] error:', error);

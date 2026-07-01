@@ -68,7 +68,7 @@ const statusLabels = {
 export default function PayRunDashboard() {
   const params = useParams();
   const router = useRouter();
-  const user = useSupabaseUser();
+  const { user, loading: userLoading } = useSupabaseUser();
   const payRunId = params?.id as string;
   
   const [payRun, setPayRun] = useState<PayRun | null>(null);
@@ -78,11 +78,11 @@ export default function PayRunDashboard() {
   const [actionLoading, setActionLoading] = useState<string>('');
 
   useEffect(() => {
-    if (user && payRunId) {
+    if (!userLoading && user && payRunId) {
       fetchUserRole();
       fetchPayRun();
     }
-  }, [user, payRunId]);
+  }, [user, payRunId, userLoading]);
 
   const fetchUserRole = async () => {
     try {
@@ -238,6 +238,17 @@ export default function PayRunDashboard() {
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
+
+  if (userLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading user session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

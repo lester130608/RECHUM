@@ -1,7 +1,12 @@
 'use client'
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-export default function EmployeeWizard() {
+export type EmployeeWizardProps = {
+  prefillName?: string;
+  onFinish?: () => void;
+};
+
+export default function EmployeeWizard({ prefillName = "", onFinish }: EmployeeWizardProps) {
   const [step, setStep] = useState(1);
 
   // Estados para los datos
@@ -41,9 +46,19 @@ export default function EmployeeWizard() {
   const canContinueStep1 = personal.firstName && personal.lastName && personal.email;
   const canContinueStep2 = job.role && job.employeeType && job.startDate && job.rate;
 
+  // Efecto para prellenar nombre
+  useEffect(() => {
+    if (prefillName) {
+      // Intentar separar nombre y apellido
+      const [firstName, ...lastNameArr] = prefillName.split(" ");
+      setPersonal((prev) => ({ ...prev, firstName: firstName || "", lastName: lastNameArr.join(" ") || "" }));
+    }
+  }, [prefillName]);
+
   // Simulación de submit final
   const handleFinish = () => {
     alert("Empleado creado (simulado). Puedes conectar aquí tu lógica de guardado.");
+    if (onFinish) onFinish();
     // Aquí puedes llamar a tu API o lógica de guardado
   };
 

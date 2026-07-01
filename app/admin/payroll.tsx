@@ -4,11 +4,15 @@ import { useState } from 'react';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
 export default function Payroll() {
-  const user = useSupabaseUser();
+  const { user, loading } = useSupabaseUser();
   const [payrollData, setPayrollData] = useState('');
 
-  if (!user) {
+  if (loading) {
     return <p>Cargando...</p>;
+  }
+
+  if (!user) {
+    return <p>Please log in.</p>;
   }
   // Aquí podrías consultar el rol si lo necesitas
   // if (rol !== 'admin') return <p>No tienes permiso para acceder a esta página.</p>;

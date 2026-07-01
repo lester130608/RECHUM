@@ -4,10 +4,14 @@ import { useSupabaseUser } from '@/hooks/useSupabaseUser'
 import Link from "next/link";
 
 export default function AdminDashboard() {
-  const user = useSupabaseUser();
+  const { user, loading } = useSupabaseUser();
+
+  if (loading) {
+    return <p>Cargando...</p>;
+  }
 
   if (!user) {
-    return <p>Cargando...</p>;
+    return <p>Please log in.</p>;
   }
 
   return (
