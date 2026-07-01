@@ -105,7 +105,8 @@ export async function GET(req: NextRequest) {
     const { data: assignRows, error: assignErr } = await supabase
       .from('assignments')
       .select('employee_id, role, employees(id, first_name, last_name)')
-      .eq('department', CMHC_AREA);
+      .eq('department', CMHC_AREA)
+      .eq('active', true);
 
     if (assignErr) {
       return NextResponse.json({ error: 'Failed to fetch CMHC employees' }, { status: 500 });

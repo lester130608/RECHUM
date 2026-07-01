@@ -70,7 +70,8 @@ export async function GET(req: NextRequest) {
     const { data: assignRows, error: assignErr } = await supabase
       .from('assignments')
       .select('employee_id, role, employees(id, first_name, last_name)')
-      .eq('department', BA_AREA);
+      .eq('department', BA_AREA)
+      .eq('active', true);
 
     if (assignErr) {
       return NextResponse.json({ error: 'Failed to fetch BA employees' }, { status: 500 });
