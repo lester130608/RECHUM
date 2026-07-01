@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Codex report files
+REPORTE_*.md
+AUDITORIA_*.md
+PAYROLL_V2_PLAN.md
+ROLE_FLOW_DESIGN.md
+TECHNICAL_DOCUMENTATION.md
+TESTING_GUIDE.md
