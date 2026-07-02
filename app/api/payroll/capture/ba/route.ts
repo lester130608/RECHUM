@@ -8,6 +8,7 @@ import {
   isOwner,
   requireAnyRole,
 } from '@/lib/auth/roleAccess';
+import { calculateAndSaveArea } from '@/lib/payroll/areaCalculationRunner';
 
 const FLORIDA_TZ = 'America/New_York';
 const BA_AREA = 'BA';
@@ -296,6 +297,14 @@ export async function POST(req: NextRequest) {
         .update({ status: 'review_ready' })
         .eq('id', run.id)
         .eq('status', 'draft');
+
+      await calculateAndSaveArea({
+        supabase,
+        area: BA_AREA,
+        periodId: period_id,
+        actorId: auth.userId,
+        allowErrors: true,
+      });
     }
 
     supabase

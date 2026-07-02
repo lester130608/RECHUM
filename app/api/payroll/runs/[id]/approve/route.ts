@@ -23,7 +23,7 @@ export async function POST(
     // Get pay run details and verify current status
     const { data: payRun, error: payRunError } = await supabase
       .from('pay_runs')
-      .select('status, week_ending')
+      .select('status, area, run_level, week_ending')
       .eq('id', payRunId)
       .single();
 
@@ -32,9 +32,9 @@ export async function POST(
     }
 
     // Verify pay run is in the right status for approval
-    if (!['review_ready'].includes(payRun.status)) {
+    if (!['review_ready', 'supervisor_approved'].includes(payRun.status)) {
       return NextResponse.json({ 
-        error: `Cannot approve pay run with status: ${payRun.status}. Must be in 'review_ready' status.` 
+        error: `Cannot approve pay run with status: ${payRun.status}. Must be ready for owner review.` 
       }, { status: 400 });
     }
 
@@ -72,6 +72,12 @@ export async function POST(
       total_amount: (allItems || []).reduce((sum, item) => sum + (item.calc_total_amount || 0), 0),
       total_exceptions: (allItems || []).reduce((sum, item) => sum + (item.exceptions_count || 0), 0)
     };
+
+    if (totals.total_workers === 0) {
+      return NextResponse.json({
+        error: 'Cannot approve pay run before calculation is saved',
+      }, { status: 400 });
+    }
 
     // Approve the pay run
     const { data: approvedPayRun, error: approveError } = await supabase

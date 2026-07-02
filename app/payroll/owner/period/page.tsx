@@ -4,6 +4,7 @@
 // Owner period review control panel. Read-only until approval/consolidation endpoints are built.
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
@@ -114,6 +115,31 @@ function statusBadgeClass(status: AreaStatus) {
   return 'badge';
 }
 
+function reviewHref(area: AreaRow) {
+  const routes: Record<AreaName, string> = {
+    BA: '/payroll/owner/ba-calculation',
+    CMHC: '/payroll/owner/cmhc-calculation',
+    TCM: '/payroll/owner/tcm-calculation',
+    PSYQ: '/payroll/owner/psyq-calculation',
+  };
+  const periodId = area.run?.period_id;
+  return periodId ? `${routes[area.area]}?period_id=${periodId}` : routes[area.area];
+}
+
+const smallLinkButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0.35rem 0.65rem',
+  borderRadius: 6,
+  border: '1px solid #d1d5db',
+  background: '#ffffff',
+  color: '#1f2937',
+  fontSize: 12,
+  fontWeight: 700,
+  textDecoration: 'none',
+} as const;
+
 function actionCell(area: AreaRow) {
   if (area.status === 'owner_approved' || area.status === 'consolidated') {
     return <span style={{ color: '#0d7a5f', fontWeight: 600 }}>Ready</span>;
@@ -121,17 +147,17 @@ function actionCell(area: AreaRow) {
 
   if (area.status === 'review_ready' || area.status === 'supervisor_approved') {
     return (
-      <button className="small" type="button" disabled title="Coming next">
+      <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
         Review &amp; approve
-      </button>
+      </Link>
     );
   }
 
   if (area.area === 'PSYQ' && area.status === 'not_started') {
     return (
-      <button className="small" type="button" disabled title="Coming next">
+      <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
         Capture
-      </button>
+      </Link>
     );
   }
 

@@ -99,6 +99,7 @@ export default function PsyqCalculationPage() {
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -113,8 +114,13 @@ export default function PsyqCalculationPage() {
       try {
         const data = await fetchWithSession('/api/payroll/psyq-calculation');
         if (!mounted) return;
+        const requestedPeriodId = new URLSearchParams(window.location.search).get('period_id');
         setPeriods(data.periods ?? []);
-        setSelectedPeriodId(data.selected_period_id ?? data.periods?.[0]?.id ?? '');
+        setSelectedPeriodId(
+          data.periods?.some((period: PayPeriod) => period.id === requestedPeriodId)
+            ? requestedPeriodId
+            : data.selected_period_id ?? data.periods?.[0]?.id ?? ''
+        );
       } catch (err: any) {
         if (err.status === 401 || err.status === 403) {
           window.location.href = '/not-authorized';
@@ -171,6 +177,10 @@ export default function PsyqCalculationPage() {
       });
       setPreview({
         ...preview,
+        pay_run: {
+          ...preview.pay_run,
+          status: 'review_ready',
+        },
         calculation: data.calculation,
       });
       setMessage(data.message || 'PSYQ calculation saved');
@@ -184,6 +194,31 @@ export default function PsyqCalculationPage() {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function approveArea() {
+    if (!preview || preview.calculation.hasErrors) return;
+    setApproving(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const data = await fetchWithSession(`/api/payroll/runs/${preview.pay_run.id}/approve`, {
+        method: 'POST',
+      });
+      setPreview({
+        ...preview,
+        pay_run: {
+          ...preview.pay_run,
+          status: data.pay_run?.status ?? 'owner_approved',
+        },
+      });
+      setMessage(data.message || 'Area approved');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setApproving(false);
     }
   }
 
@@ -266,6 +301,20 @@ export default function PsyqCalculationPage() {
             title={preview?.calculation.hasErrors ? 'Resolve missing fixed salaries before saving' : undefined}
           >
             {saving ? 'Saving...' : 'Confirm & save'}
+          </button>
+          <button
+            className="dtt-primary"
+            type="button"
+            onClick={approveArea}
+            disabled={
+              !preview ||
+              preview.calculation.hasErrors ||
+              approving ||
+              !['review_ready', 'supervisor_approved'].includes(preview.pay_run.status)
+            }
+            title={preview?.calculation.hasErrors ? 'Resolve missing fixed salaries before approving' : undefined}
+          >
+            {approving ? 'Approving...' : 'Approve area'}
           </button>
         </div>
       </div>

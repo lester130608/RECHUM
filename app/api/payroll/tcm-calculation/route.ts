@@ -268,6 +268,7 @@ export async function POST(req: NextRequest) {
     const { error: runUpdateError } = await supabase
       .from('pay_runs')
       .update({
+        status: 'review_ready',
         last_calculated_at: new Date().toISOString(),
         calculation_metadata: {
           engine: 'tcm_34h_preview_v1',

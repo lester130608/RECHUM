@@ -8,6 +8,7 @@ import {
   isOwner,
   requireAnyRole,
 } from '@/lib/auth/roleAccess';
+import { calculateAndSaveArea } from '@/lib/payroll/areaCalculationRunner';
 
 const FLORIDA_TZ = 'America/New_York';
 const TCM_AREA = 'TCM';
@@ -309,6 +310,14 @@ export async function POST(req: NextRequest) {
         .update({ status: 'review_ready' })
         .eq('id', run.id)
         .eq('status', 'draft');
+
+      await calculateAndSaveArea({
+        supabase,
+        area: TCM_AREA,
+        periodId: period_id,
+        actorId: auth.userId,
+        allowErrors: true,
+      });
     }
 
     // Audit log (fire-and-forget)
