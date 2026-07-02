@@ -28,7 +28,7 @@ export default function LoginPage() {
         setError("Supabase: " + error.message);
         alert("Supabase: " + error.message);
       } else {
-        window.location.href = "/payroll/runs";
+        window.location.href = "/payroll/dashboard";
       }
     } catch (err: any) {
       setError("Ocurrió un error inesperado: " + (err && err.message ? err.message : String(err)));

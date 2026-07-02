@@ -15,7 +15,7 @@ export default function Login() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         subscription.unsubscribe()
-        window.location.assign('/payroll/runs')
+        window.location.assign('/payroll/dashboard')
       }
     })
 

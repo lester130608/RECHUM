@@ -77,8 +77,15 @@ function isActive(pathname: string, href: string) {
 
 export function PayrollShell({ children, currentLabel }: PayrollShellProps) {
   const pathname = usePathname() || '';
-  const { user } = useSupabaseUser();
+  const { user, loading: userLoading } = useSupabaseUser();
   const [context, setContext] = useState<PayrollNavContext | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    if (!userLoading && !user) {
+      window.location.href = '/login';
+    }
+  }, [user, userLoading]);
 
   useEffect(() => {
     let mounted = true;
@@ -116,6 +123,16 @@ export function PayrollShell({ children, currentLabel }: PayrollShellProps) {
     return items;
   }, [context]);
 
+  const handleLogout = async () => {
+    setSigningOut(true);
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      // ignore
+    }
+    window.location.href = '/login';
+  };
+
   return (
     <div className="dtt-layout">
       <aside className="dtt-sidebar">
@@ -142,6 +159,23 @@ export function PayrollShell({ children, currentLabel }: PayrollShellProps) {
           <div className="dtt-topbar-right">
             <span className="dtt-topbar-user">{user?.email ?? ''}</span>
             <span className="dtt-topbar-role">{roleLabel(context)}</span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={signingOut}
+              style={{
+                border: '1px solid rgba(255, 255, 255, 0.35)',
+                background: 'rgba(255, 255, 255, 0.08)',
+                color: '#ffffff',
+                borderRadius: 6,
+                padding: '0.35rem 0.65rem',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: signingOut ? 'default' : 'pointer',
+              }}
+            >
+              {signingOut ? 'Logging out...' : 'Log out'}
+            </button>
           </div>
         </div>
 
