@@ -33,6 +33,8 @@ interface Employee {
 interface UnitEntry {
   week1: number;
   week2: number;
+  extra_week_active?: boolean;
+  extra_hours?: number;
 }
 
 type Payload = Record<string, UnitEntry>;
@@ -70,6 +72,15 @@ function hoursForUnits(units: number): number {
 
 function rateLabel(units: number): "30" | "base" {
   return hoursForUnits(units) >= 34 ? "30" : "base";
+}
+
+function normalizePayloadEntry(entry?: Partial<UnitEntry>): UnitEntry {
+  return {
+    week1: Number(entry?.week1 ?? 0),
+    week2: Number(entry?.week2 ?? 0),
+    extra_week_active: Boolean(entry?.extra_week_active),
+    extra_hours: Number(entry?.extra_hours ?? 0),
+  };
 }
 
 async function fetchWithSession(url: string, init: RequestInit = {}) {
@@ -199,11 +210,15 @@ export default function TCMCapturePage() {
 
         // Initialise payload from existing input or zeros
         if (data.existing_input?.payload) {
-          setPayload(data.existing_input.payload as Payload);
+          const nextPayload: Payload = {};
+          data.employees.forEach((e) => {
+            nextPayload[e.id] = normalizePayloadEntry(data.existing_input?.payload?.[e.id]);
+          });
+          setPayload(nextPayload);
         } else if (data.employees) {
           const init: Payload = {};
           data.employees.forEach((e) => {
-            init[e.id] = { week1: 0, week2: 0 };
+            init[e.id] = normalizePayloadEntry();
           });
           setPayload(init);
         }
@@ -224,7 +239,7 @@ export default function TCMCapturePage() {
 
     const init: Payload = {};
     ctx.employees.forEach((e) => {
-      init[e.id] = { week1: 0, week2: 0 };
+      init[e.id] = normalizePayloadEntry();
     });
     setPayload(init);
   }, [ctx?.employees]);
@@ -241,8 +256,66 @@ export default function TCMCapturePage() {
     const val = Math.max(0, parseInt(raw, 10) || 0);
     setPayload((prev) => ({
       ...prev,
-      [empId]: { ...(prev[empId] ?? { week1: 0, week2: 0 }), [week]: val },
+      [empId]: { ...normalizePayloadEntry(prev[empId]), [week]: val },
     }));
+    setSaveMsg("");
+    setSaveError("");
+  }
+
+  function handleExtraHoursChange(empId: string, raw: string) {
+    const val = Math.max(0, Number(raw) || 0);
+    setPayload((prev) => ({
+      ...prev,
+      [empId]: {
+        ...normalizePayloadEntry(prev[empId]),
+        extra_week_active: true,
+        extra_hours: val,
+      },
+    }));
+    setSaveMsg("");
+    setSaveError("");
+  }
+
+  function showExtraWeek() {
+    setPayload((prev) => {
+      const next = { ...prev };
+      (ctx?.employees ?? []).forEach((emp) => {
+        next[emp.id] = {
+          ...normalizePayloadEntry(next[emp.id]),
+          extra_week_active: true,
+        };
+      });
+      return next;
+    });
+    setSaveMsg("");
+    setSaveError("");
+  }
+
+  function removeExtraWeek() {
+    const hasCapturedHours = Object.values(payload).some(
+      (entry) => Number(entry.extra_hours ?? 0) > 0
+    );
+
+    if (
+      hasCapturedHours &&
+      !window.confirm(
+        "Esta columna tiene horas capturadas. ¿Seguro que quieres quitarla? Se perderán esas horas."
+      )
+    ) {
+      return;
+    }
+
+    setPayload((prev) => {
+      const next: Payload = {};
+      Object.entries(prev).forEach(([empId, entry]) => {
+        next[empId] = {
+          ...normalizePayloadEntry(entry),
+          extra_week_active: false,
+          extra_hours: 0,
+        };
+      });
+      return next;
+    });
     setSaveMsg("");
     setSaveError("");
   }
@@ -300,6 +373,10 @@ export default function TCMCapturePage() {
     ctx?.existing_run?.status === "locked";
 
   const isReadOnly = alreadySubmitted || runLocked;
+
+  const extraWeekVisible = Object.values(payload).some(
+    (entry) => Boolean(entry.extra_week_active) || Number(entry.extra_hours ?? 0) > 0
+  );
 
   // ---------------------------------------------------------------------------
   // Render states
@@ -449,6 +526,35 @@ export default function TCMCapturePage() {
           {/* ── Capture table ── */}
           {ctx?.employees && ctx.employees.length > 0 ? (
             <div className="section" style={{ padding: 0, overflow: "hidden" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 10,
+                  padding: "16px 20px",
+                  borderBottom: "1px solid #f0f1f3",
+                }}
+              >
+                {extraWeekVisible ? (
+                  <button
+                    type="button"
+                    className="dtt-secondary"
+                    onClick={removeExtraWeek}
+                    disabled={isReadOnly}
+                  >
+                    Remove extra week
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="dtt-secondary"
+                    onClick={showExtraWeek}
+                    disabled={isReadOnly}
+                  >
+                    + Extra week
+                  </button>
+                )}
+              </div>
               <div className="table-wrapper" style={{ border: "none", boxShadow: "none", borderRadius: 0 }}>
                 <table>
                   <thead>
@@ -462,11 +568,16 @@ export default function TCMCapturePage() {
                         Week 2 Units
                       </th>
                       <th style={{ width: "15%" }}>Week 2 Hrs / Rate</th>
+                      {extraWeekVisible && (
+                        <th style={{ width: "15%", textAlign: "center" }}>
+                          Extra Week Hours
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {ctx.employees.map((emp) => {
-                      const entry = payload[emp.id] ?? { week1: 0, week2: 0 };
+                      const entry = normalizePayloadEntry(payload[emp.id]);
                       const hrs1 = hoursForUnits(entry.week1);
                       const hrs2 = hoursForUnits(entry.week2);
                       const rate1 = rateLabel(entry.week1);
@@ -539,6 +650,22 @@ export default function TCMCapturePage() {
                               )}
                             </div>
                           </td>
+
+                          {extraWeekVisible && (
+                            <td style={{ textAlign: "center" }}>
+                              <input
+                                className="dtt-units-input"
+                                type="number"
+                                min={0}
+                                step={0.25}
+                                value={entry.extra_hours ?? 0}
+                                disabled={isReadOnly}
+                                onChange={(e) =>
+                                  handleExtraHoursChange(emp.id, e.target.value)
+                                }
+                              />
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -558,6 +685,8 @@ export default function TCMCapturePage() {
                 1 unit = 15 min = 0.25 h &nbsp;·&nbsp; Rate tier evaluated per
                 week individually &nbsp;·&nbsp; ≥ 34 h/week → $30 rate &nbsp;·&nbsp;
                 &lt; 34 h/week → base rate
+                {extraWeekVisible &&
+                  " · Extra week hours are paid flat at base rate"}
               </div>
             </div>
           ) : (

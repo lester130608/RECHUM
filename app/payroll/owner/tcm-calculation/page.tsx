@@ -35,6 +35,12 @@ interface TcmCalculationRow {
     amount: number | null;
     thresholdApplied: boolean;
   };
+  extraWeek: {
+    active: boolean;
+    hours: number;
+    rate: number | null;
+    amount: number | null;
+  };
   totalHours: number;
   totalAmount: number | null;
   status: 'ready' | 'error';
@@ -384,6 +390,9 @@ export default function TcmCalculationPage() {
                     <th>Wk2 units</th>
                     <th>Wk2 hours</th>
                     <th>Wk2 rate</th>
+                    <th>Extra hours</th>
+                    <th>Extra rate</th>
+                    <th>Extra $</th>
                     <th>Total $</th>
                     <th>Status</th>
                   </tr>
@@ -400,6 +409,9 @@ export default function TcmCalculationPage() {
                       <td>{numberValue(row.week2.units)}</td>
                       <td>{numberValue(row.week2.hours)}</td>
                       <td>{row.week2.rate === null ? '-' : money(row.week2.rate)}</td>
+                      <td>{row.extraWeek.active ? numberValue(row.extraWeek.hours) : '-'}</td>
+                      <td>{row.extraWeek.active ? (row.extraWeek.rate === null ? '-' : money(row.extraWeek.rate)) : '-'}</td>
+                      <td>{row.extraWeek.active ? money(row.extraWeek.amount) : '-'}</td>
                       <td>
                         <strong>{money(row.totalAmount)}</strong>
                       </td>
@@ -418,7 +430,7 @@ export default function TcmCalculationPage() {
           </div>
 
           <div className="info" style={{ marginTop: 14 }}>
-            Rule: each week is evaluated separately. 34.0 hours or more uses $30.00 for all hours in that week.
+            Rule: each week is evaluated separately. 34.0 hours or more uses $30.00 for all hours in that week. Extra week hours are paid flat at base rate.
           </div>
         </>
       )}

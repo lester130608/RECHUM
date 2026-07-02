@@ -1,6 +1,8 @@
 export type TcmInputEntry = {
   week1: number;
   week2: number;
+  extra_week_active?: boolean;
+  extra_hours?: number;
 };
 
 export type TcmWorkerInput = {
@@ -18,12 +20,20 @@ export type TcmWeekCalculation = {
   thresholdApplied: boolean;
 };
 
+export type TcmExtraWeekCalculation = {
+  active: boolean;
+  hours: number;
+  rate: number | null;
+  amount: number | null;
+};
+
 export type TcmEmployeeCalculation = {
   employeeId: string;
   workerName: string;
   baseRate: number | null;
   week1: TcmWeekCalculation;
   week2: TcmWeekCalculation;
+  extraWeek: TcmExtraWeekCalculation;
   totalHours: number;
   totalAmount: number | null;
   status: 'ready' | 'error';
@@ -81,6 +91,36 @@ function calculateWeek(unitsInput: unknown, baseRate: number | null): TcmWeekCal
   };
 }
 
+function calculateExtraWeek(input: TcmInputEntry, baseRate: number | null): TcmExtraWeekCalculation {
+  const active = Boolean(input.extra_week_active);
+  const hours = active ? roundToFour(toFiniteNumber(input.extra_hours)) : 0;
+
+  if (!active || hours <= 0) {
+    return {
+      active,
+      hours: 0,
+      rate: baseRate,
+      amount: 0,
+    };
+  }
+
+  if (baseRate === null) {
+    return {
+      active,
+      hours,
+      rate: null,
+      amount: null,
+    };
+  }
+
+  return {
+    active,
+    hours,
+    rate: baseRate,
+    amount: roundToTwoHalfUp(hours * baseRate),
+  };
+}
+
 export function calculateTcmPayroll(workers: TcmWorkerInput[]): TcmCalculationResult {
   const rows = workers.map((worker) => {
     const normalizedBaseRate =
@@ -88,10 +128,11 @@ export function calculateTcmPayroll(workers: TcmWorkerInput[]): TcmCalculationRe
     const hasMissingRate = normalizedBaseRate === null;
     const week1 = calculateWeek(worker.input.week1, normalizedBaseRate);
     const week2 = calculateWeek(worker.input.week2, normalizedBaseRate);
-    const totalHours = roundToFour(week1.hours + week2.hours);
+    const extraWeek = calculateExtraWeek(worker.input, normalizedBaseRate);
+    const totalHours = roundToFour(week1.hours + week2.hours + extraWeek.hours);
     const totalAmount = hasMissingRate
       ? null
-      : roundToTwoHalfUp((week1.amount ?? 0) + (week2.amount ?? 0));
+      : roundToTwoHalfUp((week1.amount ?? 0) + (week2.amount ?? 0) + (extraWeek.amount ?? 0));
 
     return {
       employeeId: worker.employeeId,
@@ -99,6 +140,7 @@ export function calculateTcmPayroll(workers: TcmWorkerInput[]): TcmCalculationRe
       baseRate: normalizedBaseRate,
       week1,
       week2,
+      extraWeek,
       totalHours,
       totalAmount,
       status: hasMissingRate ? 'error' : 'ready',

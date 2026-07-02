@@ -178,7 +178,15 @@ async function loadTcm(supabase: any, periodId: string) {
 
   if (error) throw new Error('Failed to fetch active TCM assignments');
 
-  const payload = input.payload as Record<string, { week1?: number; week2?: number }>;
+  const payload = input.payload as Record<
+    string,
+    {
+      week1?: number;
+      week2?: number;
+      extra_week_active?: boolean;
+      extra_hours?: number;
+    }
+  >;
   const workers: TcmWorkerInput[] = (assignments ?? [])
     .map((assignment: any) => {
       const employee = assignment.employees;
@@ -191,6 +199,8 @@ async function loadTcm(supabase: any, periodId: string) {
         input: {
           week1: Number(captured.week1 ?? 0),
           week2: Number(captured.week2 ?? 0),
+          extra_week_active: Boolean(captured.extra_week_active),
+          extra_hours: Number(captured.extra_hours ?? 0),
         },
       };
     })
@@ -366,6 +376,26 @@ function tcmRows(calculation: Awaited<ReturnType<typeof loadTcm>>['calculation']
         description: 'TCM week 2 units converted to hours',
         metadata: { department: 'TCM', week: 2, error: row.error, base_rate: row.baseRate },
       },
+      ...(row.extraWeek.active && row.extraWeek.hours > 0
+        ? [
+            {
+              line_type: 'hours' as const,
+              code: 'TCM_EXTRA_WEEK',
+              units: null,
+              hours: row.extraWeek.hours,
+              rate: row.extraWeek.rate ?? 0,
+              amount: row.extraWeek.amount ?? 0,
+              description: 'TCM extra week hours paid at base rate',
+              metadata: {
+                department: 'TCM',
+                extra_week: true,
+                rate_rule: 'base_rate_flat',
+                error: row.error,
+                base_rate: row.baseRate,
+              },
+            },
+          ]
+        : []),
     ],
   }));
 }

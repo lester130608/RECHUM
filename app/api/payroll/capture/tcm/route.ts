@@ -13,6 +13,13 @@ import { calculateAndSaveArea } from '@/lib/payroll/areaCalculationRunner';
 const FLORIDA_TZ = 'America/New_York';
 const TCM_AREA = 'TCM';
 
+type TcmPayloadEntry = {
+  week1: number;
+  week2: number;
+  extra_week_active?: boolean;
+  extra_hours?: number;
+};
+
 function getTodayNY(): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: FLORIDA_TZ,
@@ -135,7 +142,7 @@ export async function GET(req: NextRequest) {
 
 // ---------------------------------------------------------------------------
 // POST /api/payroll/capture/tcm
-// Body: { period_id, action: 'draft' | 'submit', payload: Record<string, {week1:number, week2:number}> }
+// Body: { period_id, action: 'draft' | 'submit', payload: Record<string, TcmPayloadEntry> }
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   try {
@@ -153,7 +160,7 @@ export async function POST(req: NextRequest) {
     const { period_id, action, payload } = body as {
       period_id?: string;
       action?: string;
-      payload?: Record<string, { week1: number; week2: number }>;
+      payload?: Record<string, TcmPayloadEntry>;
     };
 
     if (!period_id || !action || !payload) {
@@ -181,6 +188,24 @@ export async function POST(req: NextRequest) {
       if (typeof entry.week1 !== 'number' || typeof entry.week2 !== 'number') {
         return NextResponse.json(
           { error: `week1 and week2 must be numbers for employee ${empId}` },
+          { status: 400 }
+        );
+      }
+      if (
+        entry.extra_week_active !== undefined &&
+        typeof entry.extra_week_active !== 'boolean'
+      ) {
+        return NextResponse.json(
+          { error: `extra_week_active must be a boolean for employee ${empId}` },
+          { status: 400 }
+        );
+      }
+      if (
+        entry.extra_hours !== undefined &&
+        (typeof entry.extra_hours !== 'number' || entry.extra_hours < 0)
+      ) {
+        return NextResponse.json(
+          { error: `extra_hours must be a non-negative number for employee ${empId}` },
           { status: 400 }
         );
       }
