@@ -4,7 +4,7 @@
 // Owner period review control panel. Read-only until approval/consolidation endpoints are built.
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
@@ -184,110 +184,47 @@ export default function OwnerPeriodPage() {
   );
 
   const consolidatedApproved = ctx?.consolidated_run?.status === 'owner_approved';
-  const userEmail = user?.email ?? '';
 
   if (userLoading) {
     return (
-      <div className="dtt-layout">
-        <div className="dtt-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <PayrollShell currentLabel="Period Review">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ color: '#6b7280', fontSize: 14 }}>Loading...</p>
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   if (!user) {
     return (
-      <div className="dtt-layout">
-        <div className="dtt-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <PayrollShell currentLabel="Period Review">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p>Please log in to continue.</p>
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   if (loading) {
     return (
-      <div className="dtt-layout">
-        <div className="dtt-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <PayrollShell currentLabel="Period Review">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ color: '#6b7280', fontSize: 14 }}>Loading...</p>
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   if (error) {
     return (
-      <div className="dtt-layout">
-        <div className="dtt-content">
+      <PayrollShell currentLabel="Period Review">
           <div className="error">{error}</div>
-        </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   return (
-    <div className="dtt-layout">
-      <aside className="dtt-sidebar">
-        <div className="dtt-sidebar-logo">
-          <div className="dtt-sidebar-logo-title">DTT Coaching Services</div>
-          <div className="dtt-sidebar-logo-subtitle">Payroll</div>
-        </div>
-
-        <div className="dtt-sidebar-section">Payroll</div>
-        <ul className="dtt-sidebar-nav">
-          <li>
-            <Link href="/payroll/runs">Pay Runs</Link>
-          </li>
-          <li>
-            <Link href="/payroll/owner/period" className="active">
-              Period Review
-            </Link>
-          </li>
-          <li>
-            <Link href="/payroll/capture/ba">BA Capture</Link>
-          </li>
-          <li>
-            <Link href="/payroll/capture/cmhc">CMHC Capture</Link>
-          </li>
-          <li>
-            <Link href="/payroll/capture/tcm">TCM Capture</Link>
-          </li>
-        </ul>
-
-        <div className="dtt-sidebar-section">Reports</div>
-        <ul className="dtt-sidebar-nav">
-          <li>
-            <Link href="/payroll/owner">Owner Summary</Link>
-          </li>
-        </ul>
-
-        <div className="dtt-sidebar-section">System</div>
-        <ul className="dtt-sidebar-nav">
-          <li>
-            <Link href="/dashboard">Dashboard</Link>
-          </li>
-        </ul>
-      </aside>
-
-      <div className="dtt-main">
-        <div className="dtt-topbar">
-          <span className="dtt-topbar-left">DTT Coaching - Payroll</span>
-          <div className="dtt-topbar-right">
-            <span className="dtt-topbar-user">{userEmail}</span>
-            <span className="dtt-topbar-role">Owner</span>
-          </div>
-        </div>
-
-        <div className="dtt-breadcrumb">
-          <Link href="/dashboard">Home</Link>
-          <span className="dtt-breadcrumb-sep">&gt;</span>
-          <Link href="/payroll/runs">Payroll</Link>
-          <span className="dtt-breadcrumb-sep">&gt;</span>
-          <span className="dtt-breadcrumb-current">Period Review</span>
-        </div>
-
-        <div className="dtt-content">
+    <PayrollShell currentLabel="Period Review">
           <div className="page-header">
             <div className="page-header-content">
               <h1 style={{ fontSize: 22, marginBottom: 4 }}>Owner Period Review</h1>
@@ -407,8 +344,6 @@ export default function OwnerPeriodPage() {
               You are the only one who sees dollar amounts.
             </span>
           </div>
-        </div>
-      </div>
-    </div>
+    </PayrollShell>
   );
 }

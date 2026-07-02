@@ -5,7 +5,7 @@
 // Roles allowed: supervisor_tcm, owner
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { PayrollShell } from "@/components/Payroll/PayrollShell";
 import { supabase } from "@/lib/supabaseClient";
 import { useSupabaseUser } from "@/hooks/useSupabaseUser";
 
@@ -114,12 +114,6 @@ function periodStatusInWindow(
 function dateToDayNum(s: string) {
   const [y, mo, d] = s.split("-").map(Number);
   return Math.floor(Date.UTC(y, mo - 1, d) / 86_400_000);
-}
-
-function roleDisplayLabel(roleCodes: string[]): string {
-  if (roleCodes.includes("owner")) return "Owner";
-  if (roleCodes.includes("supervisor_tcm")) return "Supervisor TCM";
-  return "Payroll";
 }
 
 // ---------------------------------------------------------------------------
@@ -307,50 +301,45 @@ export default function TCMCapturePage() {
 
   const isReadOnly = alreadySubmitted || runLocked;
 
-  const userEmail = user?.email ?? "";
-  const roleLabel = roleDisplayLabel(roleCodes);
-
   // ---------------------------------------------------------------------------
   // Render states
   // ---------------------------------------------------------------------------
 
   if (userLoading) {
     return (
-      <div className="dtt-layout">
-        <div className="dtt-content" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <PayrollShell currentLabel="TCM Capture">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <p style={{ color: "#6b7280", fontSize: 14 }}>Loading...</p>
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   if (!user) {
     return (
-      <div className="dtt-layout">
-        <div className="dtt-content" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <PayrollShell currentLabel="TCM Capture">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <p>Please log in to continue.</p>
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   if (loading) {
     return (
-      <div className="dtt-layout">
-        <div className="dtt-content" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <PayrollShell currentLabel="TCM Capture">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <p style={{ color: "#6b7280", fontSize: 14 }}>Loading…</p>
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   if (fetchError) {
     return (
-      <div className="dtt-layout">
-        <div className="dtt-content">
+      <PayrollShell currentLabel="TCM Capture">
           <div className="error">{fetchError}</div>
-        </div>
-      </div>
+      </PayrollShell>
     );
   }
 
@@ -359,63 +348,7 @@ export default function TCMCapturePage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="dtt-layout">
-      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-      <aside className="dtt-sidebar">
-        <div className="dtt-sidebar-logo">
-          <div className="dtt-sidebar-logo-title">DTT Coaching Services</div>
-          <div className="dtt-sidebar-logo-subtitle">Payroll</div>
-        </div>
-
-        <div className="dtt-sidebar-section">Payroll</div>
-        <ul className="dtt-sidebar-nav">
-          <li>
-            <Link href="/payroll/runs">Pay Runs</Link>
-          </li>
-          <li>
-            <Link href="/payroll/capture/tcm" className="active">
-              TCM Capture
-            </Link>
-          </li>
-        </ul>
-
-        <div className="dtt-sidebar-section">Reports</div>
-        <ul className="dtt-sidebar-nav">
-          <li>
-            <Link href="/payroll/owner">Owner Summary</Link>
-          </li>
-        </ul>
-
-        <div className="dtt-sidebar-section">System</div>
-        <ul className="dtt-sidebar-nav">
-          <li>
-            <Link href="/dashboard">Dashboard</Link>
-          </li>
-        </ul>
-      </aside>
-
-      {/* ── Main ─────────────────────────────────────────────────────────── */}
-      <div className="dtt-main">
-        {/* Top bar */}
-        <div className="dtt-topbar">
-          <span className="dtt-topbar-left">DTT Coaching — Payroll</span>
-          <div className="dtt-topbar-right">
-            <span className="dtt-topbar-user">{userEmail}</span>
-            <span className="dtt-topbar-role">{roleLabel}</span>
-          </div>
-        </div>
-
-        {/* Breadcrumb */}
-        <div className="dtt-breadcrumb">
-          <Link href="/dashboard">Home</Link>
-          <span className="dtt-breadcrumb-sep">›</span>
-          <Link href="/payroll/runs">Payroll</Link>
-          <span className="dtt-breadcrumb-sep">›</span>
-          <span className="dtt-breadcrumb-current">TCM Capture</span>
-        </div>
-
-        {/* Content */}
-        <div className="dtt-content">
+    <PayrollShell currentLabel="TCM Capture">
           {/* Page header */}
           <div className="page-header">
             <div className="page-header-content">
@@ -680,8 +613,6 @@ export default function TCMCapturePage() {
               )}
             </div>
           )}
-        </div>
-      </div>
-    </div>
+    </PayrollShell>
   );
 }
