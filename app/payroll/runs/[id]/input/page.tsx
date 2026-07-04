@@ -57,7 +57,7 @@ export default function PayrollInputPage() {
   const [submitting, setSubmitting] = useState(false);
   
   // Form state
-  const [department, setDepartment] = useState<'BA' | 'TCM' | 'CMHC' | 'PSYQ'>('BA');
+  const [department, setDepartment] = useState<'BA' | 'TCM' | 'CMHC' | 'EMP' | 'PSYQ'>('BA');
   const [rows, setRows] = useState<PayrollInputRow[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [serviceCodes, setServiceCodes] = useState<ServiceCode[]>(defaultServiceCodes);
@@ -325,7 +325,7 @@ export default function PayrollInputPage() {
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <h2 className="text-xl font-semibold mb-4">Department</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {(['BA', 'TCM', 'CMHC', 'PSYQ'] as const).map((dept) => (
+            {(['BA', 'TCM', 'CMHC', 'EMP'] as const).map((dept) => (
               <label key={dept} className="flex items-center">
                 <input
                   type="radio"

@@ -25,7 +25,7 @@ export const SUPERVISOR_ROLES = [
 ] as const;
 
 export type PayrollRole = (typeof REAL_PAYROLL_ROLES)[number];
-export type PayrollArea = 'BA' | 'CMHC' | 'TCM' | 'PSYQ' | 'GENERAL';
+export type PayrollArea = 'BA' | 'CMHC' | 'TCM' | 'EMP' | 'PSYQ' | 'GENERAL';
 
 const ROLE_TO_AREA: Record<(typeof SUPERVISOR_ROLES)[number], PayrollArea> = {
   supervisor_ba: 'BA',
@@ -39,7 +39,7 @@ export function normalizeRole(value: string) {
 
 export function normalizeArea(value: string): PayrollArea | null {
   const area = value.trim().toUpperCase();
-  if (['BA', 'CMHC', 'TCM', 'PSYQ', 'GENERAL'].includes(area)) {
+  if (['BA', 'CMHC', 'TCM', 'EMP', 'PSYQ', 'GENERAL'].includes(area)) {
     return area as PayrollArea;
   }
   return null;
@@ -121,7 +121,7 @@ export function isOwner(roleCodes: string[]) {
 
 export function getSupervisedAreas(roleCodes: string[]): PayrollArea[] {
   if (isOwner(roleCodes)) {
-    return ['BA', 'CMHC', 'TCM', 'PSYQ', 'GENERAL'];
+    return ['BA', 'CMHC', 'TCM', 'EMP', 'PSYQ', 'GENERAL'];
   }
 
   return SUPERVISOR_ROLES

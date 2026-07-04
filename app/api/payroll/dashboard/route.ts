@@ -8,7 +8,7 @@ import {
   type PayrollArea,
 } from '@/lib/auth/roleAccess';
 
-const AREAS = ['BA', 'CMHC', 'TCM', 'PSYQ'] as const;
+const AREAS = ['BA', 'CMHC', 'TCM', 'EMP'] as const;
 const FLORIDA_TIME_ZONE = 'America/New_York';
 
 type Area = (typeof AREAS)[number];
@@ -58,8 +58,8 @@ function chooseCurrentPeriod(periods: any[], today: string) {
 }
 
 function statusToTask(area: Area, status: AreaStatus) {
-  if (area === 'PSYQ' && status === 'not_started') {
-    return 'PSYQ capture has not started.';
+  if (area === 'EMP' && status === 'not_started') {
+    return 'EMP office capture has not started.';
   }
 
   if (status === 'not_started' || status === 'draft') {

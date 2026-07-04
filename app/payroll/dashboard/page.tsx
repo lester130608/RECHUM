@@ -6,7 +6,7 @@ import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
-type AreaName = 'BA' | 'CMHC' | 'TCM' | 'PSYQ';
+type AreaName = 'BA' | 'CMHC' | 'TCM' | 'EMP';
 
 type AreaStatus =
   | 'not_started'
@@ -93,6 +93,10 @@ function badgeClass(status: AreaStatus) {
   if (status === 'supervisor_approved') return 'badge accent';
   if (status === 'owner_approved' || status === 'consolidated' || status === 'exported') return 'badge success';
   return 'badge';
+}
+
+function areaDisplayLabel(area: AreaName) {
+  return area === 'EMP' ? 'EMP / Office' : area;
 }
 
 async function fetchWithSession(url: string) {
@@ -323,8 +327,8 @@ export default function PayrollDashboardPage() {
                 {(ctx?.areas ?? []).map((area) => (
                   <tr key={area.area}>
                     <td>
-                      <strong>{area.area}</strong>
-                      {area.area === 'PSYQ' && ctx?.is_owner && (
+                      <strong>{areaDisplayLabel(area.area)}</strong>
+                      {area.area === 'EMP' && ctx?.is_owner && (
                         <span style={{ color: '#6b7280', marginLeft: 6 }}>(you)</span>
                       )}
                     </td>

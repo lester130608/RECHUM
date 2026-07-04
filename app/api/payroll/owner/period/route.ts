@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAnyRole } from '@/lib/auth/roleAccess';
 
-const AREAS = ['BA', 'CMHC', 'TCM', 'PSYQ'] as const;
+const AREAS = ['BA', 'CMHC', 'TCM', 'EMP'] as const;
 
 type Area = (typeof AREAS)[number];
 
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
         .from('pay_runs')
         .select('id, period_id, area, run_level, status, created_at, supervisor_approved_at, owner_approved_at')
         .eq('period_id', selectedPeriodId)
-        .in('area', ['BA', 'CMHC', 'TCM', 'PSYQ', 'GENERAL']);
+        .in('area', ['BA', 'CMHC', 'TCM', 'EMP', 'GENERAL']);
 
       if (runsError) {
         console.error('Error fetching owner review runs:', runsError);

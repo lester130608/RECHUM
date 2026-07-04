@@ -9,7 +9,7 @@ import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
-type AreaName = 'BA' | 'CMHC' | 'TCM' | 'PSYQ';
+type AreaName = 'BA' | 'CMHC' | 'TCM' | 'EMP';
 
 interface PayPeriod {
   id: string;
@@ -120,10 +120,14 @@ function reviewHref(area: AreaRow) {
     BA: '/payroll/owner/ba-calculation',
     CMHC: '/payroll/owner/cmhc-calculation',
     TCM: '/payroll/owner/tcm-calculation',
-    PSYQ: '/payroll/owner/psyq-calculation',
+    EMP: '/payroll/owner/office-capture',
   };
   const periodId = area.run?.period_id;
   return periodId ? `${routes[area.area]}?period_id=${periodId}` : routes[area.area];
+}
+
+function areaDisplayLabel(area: AreaName) {
+  return area === 'EMP' ? 'EMP / Office' : area;
 }
 
 const smallLinkButtonStyle = {
@@ -153,7 +157,7 @@ function actionCell(area: AreaRow) {
     );
   }
 
-  if (area.area === 'PSYQ' && area.status === 'not_started') {
+  if (area.area === 'EMP' && (area.status === 'not_started' || area.status === 'draft')) {
     return (
       <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
         Capture
@@ -328,8 +332,8 @@ export default function OwnerPeriodPage() {
                     <tr key={area.area}>
                       <td>
                         <span style={{ fontWeight: 600 }}>
-                          {area.area}
-                          {area.area === 'PSYQ' ? ' (you)' : ''}
+                          {areaDisplayLabel(area.area)}
+                          {area.area === 'EMP' ? ' (you)' : ''}
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>{area.workers}</td>

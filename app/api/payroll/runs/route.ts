@@ -155,7 +155,7 @@ export async function POST(request: Request) {
     }
 
     if (!area) {
-      return NextResponse.json({ error: 'area must be one of BA, CMHC, TCM, PSYQ, GENERAL' }, { status: 400 });
+      return NextResponse.json({ error: 'area must be one of BA, CMHC, TCM, EMP, PSYQ, GENERAL' }, { status: 400 });
     }
 
     if (!['area', 'consolidated'].includes(runLevel)) {
@@ -174,8 +174,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Insufficient permissions for payroll area' }, { status: 403 });
     }
 
-    if (!isOwner(auth.roleCodes) && area === 'PSYQ') {
-      return NextResponse.json({ error: 'PSYQ runs can only be created by owner' }, { status: 403 });
+    if (!isOwner(auth.roleCodes) && (area === 'EMP' || area === 'PSYQ')) {
+      return NextResponse.json({ error: `${area} runs can only be created by owner` }, { status: 403 });
     }
 
     if (!isOwner(auth.roleCodes) && runLevel !== 'area') {

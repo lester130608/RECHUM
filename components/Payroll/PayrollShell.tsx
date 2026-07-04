@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
-type PayrollArea = 'BA' | 'CMHC' | 'TCM' | 'PSYQ' | 'GENERAL';
+type PayrollArea = 'BA' | 'CMHC' | 'TCM' | 'EMP' | 'PSYQ' | 'GENERAL';
 
 type PayrollShellProps = {
   children: React.ReactNode;

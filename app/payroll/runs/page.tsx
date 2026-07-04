@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
-type PayrollArea = 'BA' | 'CMHC' | 'TCM' | 'PSYQ' | 'GENERAL';
+type PayrollArea = 'BA' | 'CMHC' | 'TCM' | 'EMP' | 'PSYQ' | 'GENERAL';
 
 interface PayPeriod {
   id: string;
@@ -48,7 +48,7 @@ interface PayRun {
   };
 }
 
-const OWNER_AREAS: PayrollArea[] = ['BA', 'CMHC', 'TCM', 'PSYQ', 'GENERAL'];
+const OWNER_AREAS: PayrollArea[] = ['BA', 'CMHC', 'TCM', 'EMP', 'GENERAL'];
 
 const statusColors: Record<PayRun['status'], string> = {
   draft: 'bg-gray-100 text-gray-800',

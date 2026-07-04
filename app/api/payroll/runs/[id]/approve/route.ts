@@ -73,7 +73,24 @@ export async function POST(
       total_exceptions: (allItems || []).reduce((sum, item) => sum + (item.exceptions_count || 0), 0)
     };
 
-    if (totals.total_workers === 0) {
+    if (totals.total_workers === 0 && payRun.area === 'EMP') {
+      const { data: empInput, error: empInputError } = await supabase
+        .from('payroll_inputs')
+        .select('id')
+        .eq('pay_run_id', payRunId)
+        .eq('department', 'EMP')
+        .maybeSingle();
+
+      if (empInputError) {
+        return NextResponse.json({ error: 'Failed to verify EMP office input' }, { status: 500 });
+      }
+
+      if (!empInput) {
+        return NextResponse.json({
+          error: 'Cannot approve EMP before office time is captured',
+        }, { status: 400 });
+      }
+    } else if (totals.total_workers === 0) {
       return NextResponse.json({
         error: 'Cannot approve pay run before calculation is saved',
       }, { status: 400 });

@@ -74,7 +74,7 @@ export async function POST(
     }
 
     // Validate department
-    const validDepartments = ['BA', 'TCM', 'CMHC', 'PSYQ'];
+    const validDepartments = ['BA', 'TCM', 'CMHC', 'EMP', 'PSYQ'];
     if (!validDepartments.includes(department)) {
       return NextResponse.json({ 
         error: `Invalid department. Must be one of: ${validDepartments.join(', ')}` 
