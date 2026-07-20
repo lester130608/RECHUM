@@ -433,7 +433,7 @@ export default function PayrollEmployeesPage() {
                   onChange={(event) => setStatusFilter(event.target.value as EmployeeStatusFilter)}
                 >
                   <option value="active">Active</option>
-                  <option value="paused">Paused</option>
+                  <option value="paused">Inactive</option>
                   <option value="all">All</option>
                 </select>
               </div>
@@ -450,7 +450,7 @@ export default function PayrollEmployeesPage() {
                     <th>Role</th>
                     <th>Status</th>
                     {ctx?.is_owner && <th>Rate</th>}
-                    {ctx?.is_owner && <th>Actions</th>}
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -470,25 +470,27 @@ export default function PayrollEmployeesPage() {
                       </td>
                       <td>
                         <span className={employee.active ? 'badge success' : 'badge'}>
-                          {employee.active ? 'Active' : 'Paused'}
+                          {employee.active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       {ctx?.is_owner && <td>{formatRate(employee.rate)}</td>}
-                      {ctx?.is_owner && (
-                        <td>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <td>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {ctx?.is_owner && (
                             <button className="small" type="button" onClick={() => openEditForm(employee)}>
                               Edit
                             </button>
-                            <button className="small" type="button" onClick={() => togglePaused(employee)}>
-                              {employee.active ? 'Pause' : 'Resume'}
-                            </button>
-                            <button className="small" type="button" disabled title="Confirm remove policy with Lester first">
-                              Remove
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                          )}
+                          <button
+                            className="small"
+                            type="button"
+                            onClick={() => togglePaused(employee)}
+                            title={employee.active ? 'Deactivate this employee (reversible)' : 'Reactivate this employee'}
+                          >
+                            {employee.active ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

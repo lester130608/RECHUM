@@ -232,11 +232,12 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = await createServerSupabase();
-    const auth = await requireAnyRole(supabase, ['owner']);
+    const auth = await requireAnyRole(supabase, [...REAL_PAYROLL_ROLES]);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
+    const owner = isOwner(auth.roleCodes);
     const body = await req.json();
     const action = body.action as string | undefined;
     const employeeId = body.employee_id as string | undefined;
@@ -244,6 +245,11 @@ export async function PATCH(req: NextRequest) {
 
     if (!action || !employeeId || !originalArea) {
       return NextResponse.json({ error: 'action, employee_id, and area are required' }, { status: 400 });
+    }
+
+    // Supervisors may only manage employees in an area they supervise.
+    if (!owner && !canManageArea(auth.roleCodes, originalArea)) {
+      return NextResponse.json({ error: 'Insufficient permissions for this area' }, { status: 403 });
     }
 
     if (action === 'pause' || action === 'resume') {
@@ -258,7 +264,7 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to update employee status' }, { status: 500 });
       }
 
-      return NextResponse.json({ message: action === 'resume' ? 'Employee resumed' : 'Employee paused' });
+      return NextResponse.json({ message: action === 'resume' ? 'Employee activated' : 'Employee deactivated' });
     }
 
     if (action === 'edit') {
@@ -267,7 +273,6 @@ export async function PATCH(req: NextRequest) {
       const lastName = normalizeName(payload?.last_name);
       const area = normalizePayrollEmployeeArea(payload?.area ?? '');
       const role = normalizeRoleValue(payload?.role);
-      const rate = typeof payload?.rate === 'number' ? payload.rate : null;
 
       if (!firstName || !lastName || !area || !role) {
         return NextResponse.json({ error: 'first_name, last_name, area, and role are required' }, { status: 400 });
@@ -277,17 +282,33 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'area must be BA, CMHC, TCM, PSYQ, or EMP' }, { status: 400 });
       }
 
+      // A supervisor cannot move an employee into an area they don't supervise.
+      if (!owner && !canManageArea(auth.roleCodes, area)) {
+        return NextResponse.json({ error: 'Insufficient permissions for target area' }, { status: 403 });
+      }
+
       if (!validateRoleForArea(area, role)) {
         return NextResponse.json({ error: `Invalid role for ${area}` }, { status: 400 });
       }
 
+      // Rate is owner-only. Never overwrite it on a supervisor edit.
+      const employeeUpdate: Record<string, unknown> = {
+        first_name: firstName,
+        last_name: lastName,
+      };
+      const assignmentUpdate: Record<string, unknown> = {
+        department: area,
+        role,
+      };
+      if (owner) {
+        const rate = typeof payload?.rate === 'number' ? payload.rate : null;
+        employeeUpdate.rate = rate;
+        assignmentUpdate.base_rate = rate;
+      }
+
       const { error: employeeError } = await supabase
         .from('employees')
-        .update({
-          first_name: firstName,
-          last_name: lastName,
-          rate,
-        })
+        .update(employeeUpdate)
         .eq('id', employeeId);
 
       if (employeeError) {
@@ -297,11 +318,7 @@ export async function PATCH(req: NextRequest) {
 
       const { error: assignmentError } = await supabase
         .from('assignments')
-        .update({
-          department: area,
-          role,
-          base_rate: rate,
-        })
+        .update(assignmentUpdate)
         .eq('employee_id', employeeId)
         .eq('department', originalArea);
 
@@ -314,10 +331,20 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (action === 'remove') {
-      return NextResponse.json(
-        { error: 'Remove policy is not confirmed yet. Use pause for now.' },
-        { status: 400 }
-      );
+      // Soft delete: deactivate the assignment. Reversible via 'resume'.
+      // History is preserved; the employee simply leaves the active roster.
+      const { error } = await supabase
+        .from('assignments')
+        .update({ active: false })
+        .eq('employee_id', employeeId)
+        .eq('department', originalArea);
+
+      if (error) {
+        console.error('PATCH /api/payroll/employees remove error:', error);
+        return NextResponse.json({ error: 'Failed to remove employee' }, { status: 500 });
+      }
+
+      return NextResponse.json({ message: 'Employee removed from roster' });
     }
 
     return NextResponse.json({ error: 'Unsupported action' }, { status: 400 });

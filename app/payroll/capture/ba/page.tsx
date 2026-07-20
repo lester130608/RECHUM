@@ -128,6 +128,11 @@ export default function BACapturePage() {
   const [fetchError, setFetchError] = useState('');
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [payload, setPayload] = useState<Payload>({});
+  // Raw text the user is typing per field, so intermediate values like "14."
+  // are not wiped by numeric parsing while typing fractional hours.
+  const [rawInputs, setRawInputs] = useState<
+    Record<string, Partial<Record<keyof BAEntry, string>>>
+  >({});
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [saveError, setSaveError] = useState('');
@@ -191,6 +196,8 @@ export default function BACapturePage() {
           });
           setPayload(init);
         }
+        // Clear any raw typing overlay when a new period's data loads.
+        setRawInputs({});
         setSaveMsg('');
         setSaveError('');
       } catch {
@@ -227,12 +234,40 @@ export default function BACapturePage() {
 
   const isReadOnly = alreadySubmitted || runLocked;
 
+  // What to show in the input: the raw text being typed if present,
+  // otherwise the numeric value from the payload.
+  function displayValue(
+    employeeId: string,
+    field: keyof BAEntry,
+    numericValue: number
+  ) {
+    const raw = rawInputs[employeeId]?.[field];
+    return raw !== undefined ? raw : String(numericValue);
+  }
+
   function handleFieldChange(
     employeeId: string,
     field: keyof BAEntry,
     raw: string
   ) {
-    const val = Math.max(0, parseInt(raw, 10) || 0);
+    // Keep the raw text so typing "14." (mid-decimal) is not lost.
+    setRawInputs((prev) => ({
+      ...prev,
+      [employeeId]: { ...(prev[employeeId] ?? {}), [field]: raw },
+    }));
+
+    let val: number;
+    if (field === 'hours') {
+      // Hours support fractions (e.g. 14.75). Keep digits and a single dot.
+      const cleaned = raw.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+      const parsed = parseFloat(cleaned);
+      val = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    } else {
+      // Assessment / Re-assessment are whole counts.
+      const parsed = parseInt(raw, 10);
+      val = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    }
+
     setPayload((prev) => ({
       ...prev,
       [employeeId]: {
@@ -432,10 +467,9 @@ export default function BACapturePage() {
                           <td style={{ textAlign: 'center' }}>
                             <input
                               className="dtt-units-input"
-                              type="number"
-                              min={0}
-                              step={0.25}
-                              value={entry.hours}
+                              type="text"
+                              inputMode="decimal"
+                              value={displayValue(employee.id, 'hours', entry.hours)}
                               disabled={isReadOnly}
                               onChange={(e) => handleFieldChange(employee.id, 'hours', e.target.value)}
                             />
