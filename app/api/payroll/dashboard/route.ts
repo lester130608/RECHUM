@@ -133,6 +133,53 @@ export async function GET() {
       runs = currentRuns ?? [];
     }
 
+    // Previous period runs, needed for the "last payroll" card.
+    let previousRuns: any[] = [];
+    if (previousPeriod) {
+      const { data: priorRuns, error: priorRunsError } = await supabase
+        .from('pay_runs')
+        .select('id, area')
+        .eq('period_id', previousPeriod.id)
+        .eq('run_level', 'area')
+        .in('area', [...AREAS]);
+
+      if (priorRunsError) {
+        console.error('Error fetching previous payroll runs:', priorRunsError);
+      } else {
+        previousRuns = priorRuns ?? [];
+      }
+    }
+
+    // Line items drive the real dollar totals. Amounts are owner-only:
+    // supervisors see worker counts and status, never money.
+    const allRunIds = [...runs, ...previousRuns].map((run) => run.id).filter(Boolean);
+
+    const amountByRun = new Map<string, number>();
+    const workersByRun = new Map<string, Set<string>>();
+
+    if (owner && allRunIds.length) {
+      const { data: items, error: itemsError } = await supabase
+        .from('pay_run_items')
+        .select('pay_run_id, worker_id, calc_total_amount')
+        .in('pay_run_id', allRunIds);
+
+      if (itemsError) {
+        console.error('Error fetching pay run items:', itemsError);
+      } else {
+        for (const item of items ?? []) {
+          const runId = item.pay_run_id as string;
+          amountByRun.set(runId, (amountByRun.get(runId) ?? 0) + (Number(item.calc_total_amount) || 0));
+
+          if (!workersByRun.has(runId)) {
+            workersByRun.set(runId, new Set<string>());
+          }
+          if (item.worker_id) {
+            workersByRun.get(runId)!.add(item.worker_id as string);
+          }
+        }
+      }
+    }
+
     const { data: assignments, error: assignmentsError } = await supabase
       .from('assignments')
       .select('employee_id, department')
@@ -158,14 +205,24 @@ export async function GET() {
     const runsByArea = new Map(runs.map((run) => [run.area, run]));
     const areas = visibleAreas.map((area) => {
       const run = runsByArea.get(area) ?? null;
+
+      // null means "no amount to show yet" (not calculated, or viewer is not
+      // the owner). The UI renders a dash instead of a misleading $0.00.
+      const total = run && amountByRun.has(run.id) ? amountByRun.get(run.id)! : null;
+
       return {
         area,
         workers: workerIdsByArea[area].size,
         run,
         status: (run?.status ?? 'not_started') as AreaStatus,
-        total_placeholder: 'Pending',
+        total,
       };
     });
+
+    const periodTotal = areas.reduce<number | null>((sum, area) => {
+      if (area.total === null) return sum;
+      return (sum ?? 0) + area.total;
+    }, null);
 
     const tasks = areas
       .map((area) => statusToTask(area.area, area.status))
@@ -179,11 +236,18 @@ export async function GET() {
       employee_name: [employee?.first_name, employee?.last_name].filter(Boolean).join(' ') || null,
       current_period: currentPeriod,
       areas,
+      period_total: periodTotal,
       last_payroll: previousPeriod
         ? {
             period: previousPeriod,
-            workers: areas.reduce((sum, area) => sum + area.workers, 0),
-            total_placeholder: 'Pending',
+            // Counted from the previous period's own line items. It used to sum
+            // the CURRENT period's areas, so this card always mirrored the
+            // number above it.
+            workers: previousRuns.reduce((sum, run) => sum + (workersByRun.get(run.id)?.size ?? 0), 0) || null,
+            total: previousRuns.reduce<number | null>((sum, run) => {
+              if (!amountByRun.has(run.id)) return sum;
+              return (sum ?? 0) + amountByRun.get(run.id)!;
+            }, null),
           }
         : null,
       tasks,

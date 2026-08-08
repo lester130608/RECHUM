@@ -38,6 +38,10 @@ function dateToDayNum(s: string) {
   return Math.floor(Date.UTC(y, mo - 1, d) / 86_400_000);
 }
 
+function normalizeEmployeeRole(value?: string | null) {
+  return (value ?? '').trim().toUpperCase();
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/payroll/capture/tcm?period_id=<uuid>
 // Returns: { is_owner, today, pay_periods, employees, existing_run, existing_input }
@@ -83,7 +87,7 @@ export async function GET(req: NextRequest) {
     // --- TCM employees via assignments ---
     const { data: assignRows, error: assignErr } = await supabase
       .from('assignments')
-      .select('employee_id, employees(id, first_name, last_name)')
+      .select('employee_id, role, employees(id, first_name, last_name)')
       .eq('department', TCM_AREA)
       .eq('active', true);
 
@@ -92,7 +96,17 @@ export async function GET(req: NextRequest) {
     }
 
     const employees = (assignRows ?? [])
-      .map((a: any) => a.employees)
+      .map((assignment: any) => {
+        const employee = assignment.employees;
+        if (!employee) {
+          return null;
+        }
+
+        return {
+          ...employee,
+          role: normalizeEmployeeRole(assignment.role),
+        };
+      })
       .filter(Boolean)
       .sort((a: any, b: any) =>
         `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)

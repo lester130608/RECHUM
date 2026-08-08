@@ -651,22 +651,69 @@ table tbody tr:hover {
 
 /* === Login (preservar) === */
 .login-wrapper {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   background: var(--color-bg-subtle);
   padding: var(--space-4);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Fondo decorativo: dashboard abstracto, datos ficticios.
+   Ajusta --login-bg-opacity para subir o bajar la intensidad. */
+.login-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/login-bg.svg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--login-bg-opacity, 0.75);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Velo que aclara el centro para que la caja siempre tenga contraste */
+.login-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 46% 58% at 50% 50%,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(255, 255, 255, 0.42) 45%,
+    rgba(255, 255, 255, 0) 75%
+  );
+  pointer-events: none;
+  z-index: 0;
 }
 
 .login-box {
-  background: var(--color-bg);
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
   padding: var(--space-10);
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    0 1px 2px rgba(28, 25, 23, 0.04),
+    0 12px 32px rgba(28, 25, 23, 0.10),
+    0 32px 64px -16px rgba(6, 95, 70, 0.16);
   max-width: 420px;
   width: 100%;
+}
+
+/* Navegadores sin backdrop-filter: caja sólida, sin perder legibilidad */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .login-box {
+    background: rgba(255, 255, 255, 0.97);
+  }
 }
 
 .login-header {
@@ -678,6 +725,22 @@ table tbody tr:hover {
   max-height: 80px;
   margin-bottom: var(--space-4);
   object-fit: contain;
+}
+
+/* Menos decoración en pantallas chicas: el fondo compite con el formulario */
+@media (max-width: 640px) {
+  .login-wrapper::before { opacity: 0.28; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .login-box {
+    animation: login-box-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes login-box-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
 }
 
 /* === Utility classes === */

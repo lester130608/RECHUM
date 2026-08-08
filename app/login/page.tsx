@@ -35,7 +35,7 @@ export default function Login() {
           <img src="/logo.png" alt="Logo" className="logo" />
           <h1 className="heading">
             DTT Coaching Services, LLC{' '}
-            <span style={{ color: '#ef4444' }}>Payroll</span>
+            <span style={{ color: 'var(--color-accent)' }}>Payroll</span>
           </h1>
           <p className="text-sm">Sign In</p>
         </div>
@@ -74,7 +74,7 @@ export default function Login() {
             </label>
             <a
               href="#"
-              style={{ color: '#2563eb', textDecoration: 'underline' }}
+              style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}
             >
               Forgot Password?
             </a>
@@ -82,7 +82,7 @@ export default function Login() {
         </form>
 
         <p className="text-xs text-center text-gray-400 mt-6">
-          © 2025 DTT Coaching Services, LLC.
+          © {new Date().getFullYear()} DTT Coaching Services, LLC.
         </p>
       </div>
     </div>

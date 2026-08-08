@@ -28,6 +28,7 @@ interface Employee {
   id: string;
   first_name: string;
   last_name: string;
+  role?: string;
 }
 
 interface UnitEntry {
@@ -72,6 +73,10 @@ function hoursForUnits(units: number): number {
 
 function rateLabel(units: number): "30" | "base" {
   return hoursForUnits(units) >= 34 ? "30" : "base";
+}
+
+function getDisplayRole(role?: string) {
+  return (role ?? "").trim().toUpperCase() || "—";
 }
 
 function normalizePayloadEntry(entry?: Partial<UnitEntry>): UnitEntry {
@@ -559,17 +564,18 @@ export default function TCMCapturePage() {
                 <table>
                   <thead>
                     <tr>
-                      <th style={{ width: "22%" }}>Worker</th>
-                      <th style={{ width: "13%", textAlign: "center" }}>
+                      <th style={{ width: "20%" }}>Worker</th>
+                      <th style={{ width: "10%" }}>Role</th>
+                      <th style={{ width: "12%", textAlign: "center" }}>
                         Week 1 Units
                       </th>
-                      <th style={{ width: "15%" }}>Week 1 Hrs / Rate</th>
-                      <th style={{ width: "13%", textAlign: "center" }}>
+                      <th style={{ width: "14%" }}>Week 1 Hrs / Rate</th>
+                      <th style={{ width: "12%", textAlign: "center" }}>
                         Week 2 Units
                       </th>
-                      <th style={{ width: "15%" }}>Week 2 Hrs / Rate</th>
+                      <th style={{ width: "14%" }}>Week 2 Hrs / Rate</th>
                       {extraWeekVisible && (
-                        <th style={{ width: "15%", textAlign: "center" }}>
+                        <th style={{ width: "14%", textAlign: "center" }}>
                           Extra Week Hours
                         </th>
                       )}
@@ -594,6 +600,13 @@ export default function TCMCapturePage() {
                               }}
                             >
                               {emp.first_name} {emp.last_name}
+                            </span>
+                          </td>
+
+                          {/* Role */}
+                          <td>
+                            <span className="badge accent">
+                              {getDisplayRole(emp.role)}
                             </span>
                           </td>
 

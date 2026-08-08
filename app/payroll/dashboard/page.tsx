@@ -34,7 +34,7 @@ interface AreaRow {
   area: AreaName;
   workers: number;
   status: AreaStatus;
-  total_placeholder: string;
+  total: number | null;
 }
 
 interface DashboardContext {
@@ -43,12 +43,23 @@ interface DashboardContext {
   employee_name: string | null;
   current_period: PayPeriod | null;
   areas: AreaRow[];
+  period_total: number | null;
   last_payroll: {
     period: PayPeriod;
-    workers: number;
-    total_placeholder: string;
+    workers: number | null;
+    total: number | null;
   } | null;
   tasks: string[];
+}
+
+function fmtMoney(amount?: number | null) {
+  if (amount === null || amount === undefined) return '—';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
 }
 
 const CAPTURE_BY_AREA: Partial<Record<AreaName, string>> = {
@@ -295,11 +306,11 @@ export default function PayrollDashboardPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span style={{ color: '#6b7280' }}>Total</span>
-                <strong>Pending</strong>
+                <strong>{fmtMoney(ctx.last_payroll.total)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span style={{ color: '#6b7280' }}>Workers</span>
-                <strong>{ctx.last_payroll.workers}</strong>
+                <strong>{ctx.last_payroll.workers ?? '—'}</strong>
               </div>
             </div>
           ) : (
@@ -336,7 +347,7 @@ export default function PayrollDashboardPage() {
                     <td>
                       <span className={badgeClass(area.status)}>{statusLabel(area.status)}</span>
                     </td>
-                    <td>Pending</td>
+                    <td>{fmtMoney(area.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -367,7 +378,9 @@ export default function PayrollDashboardPage() {
             <div className="empty-state">Nothing needs attention right now.</div>
           )}
           <div className="info" style={{ marginTop: 14 }}>
-            Dollar amounts stay pending until the payroll calculation engine is enabled.
+            {ctx?.is_owner
+              ? 'Amounts appear once an area is calculated. A dash means nothing has been calculated yet.'
+              : 'Dollar amounts are visible to the owner only.'}
           </div>
         </section>
       </div>

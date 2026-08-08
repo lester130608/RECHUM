@@ -84,8 +84,12 @@ async function fetchWithSession(url: string, init: RequestInit = {}) {
   if (!response.ok) {
     const error = new Error(data.error || 'Request failed') as Error & {
       status?: number;
+      body?: any;
     };
     error.status = response.status;
+    // El endpoint de consolidación devuelve 'blocking' con el detalle de qué
+    // área falta; sin esto se pierde y el usuario solo ve un mensaje genérico.
+    error.body = data;
     throw error;
   }
 
@@ -174,6 +178,9 @@ export default function OwnerPeriodPage() {
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [consolidating, setConsolidating] = useState(false);
+  const [consolidateMsg, setConsolidateMsg] = useState('');
+  const [consolidateErr, setConsolidateErr] = useState('');
 
   async function loadPeriod(periodId?: string) {
     setLoading(true);
@@ -214,6 +221,51 @@ export default function OwnerPeriodPage() {
   );
 
   const consolidatedApproved = ctx?.consolidated_run?.status === 'owner_approved';
+
+  // Las cuatro áreas deben estar aprobadas. La consolidación parcial no existe:
+  // la política RLS de consolidated_run_areas exige runs en 'owner_approved',
+  // y un total con áreas faltantes sería un número engañoso.
+  const canConsolidate = ownerApprovedCount === 4 && !consolidating;
+
+  async function handleConsolidate() {
+    if (!selectedPeriodId) return;
+
+    setConsolidating(true);
+    setConsolidateMsg('');
+    setConsolidateErr('');
+
+    try {
+      const data = await fetchWithSession('/api/payroll/owner/consolidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_id: selectedPeriodId }),
+      });
+
+      const total =
+        typeof data?.grand_total === 'number'
+          ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+              data.grand_total
+            )
+          : null;
+
+      setConsolidateMsg(
+        total
+          ? `Consolidated. Grand total ${total} across ${data.linked ?? 0} areas.`
+          : 'Consolidated successfully.'
+      );
+
+      await loadPeriod(selectedPeriodId);
+    } catch (err: any) {
+      const blocking = Array.isArray(err?.body?.blocking) ? err.body.blocking : null;
+      setConsolidateErr(
+        blocking?.length
+          ? `Missing: ${blocking.map((b: any) => `${b.area} (${b.status})`).join(', ')}`
+          : err.message || 'Failed to consolidate'
+      );
+    } finally {
+      setConsolidating(false);
+    }
+  }
 
   if (userLoading) {
     return (
@@ -355,11 +407,22 @@ export default function OwnerPeriodPage() {
 
           <div className="dtt-action-bar">
             <span style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>
-              {ownerApprovedCount} of 4 areas owner-approved · you can consolidate partial
+              {ownerApprovedCount} of 4 areas owner-approved
+              {ownerApprovedCount < 4 && ' · all four are required to consolidate'}
             </span>
 
-            <button className="dtt-secondary" type="button" disabled title="Coming next">
-              Consolidate approved areas
+            <button
+              className="dtt-secondary"
+              type="button"
+              onClick={handleConsolidate}
+              disabled={!canConsolidate}
+              title={
+                ownerApprovedCount < 4
+                  ? 'All four areas must be owner-approved first'
+                  : 'Build the consolidated run for this period'
+              }
+            >
+              {consolidating ? 'Consolidating…' : 'Consolidate areas'}
             </button>
             <button
               className="dtt-secondary"
@@ -371,7 +434,13 @@ export default function OwnerPeriodPage() {
             </button>
 
             <span className="dtt-action-bar-msg">
-              You are the only one who sees dollar amounts.
+              {consolidateErr ? (
+                <span style={{ color: '#b91c1c' }}>{consolidateErr}</span>
+              ) : consolidateMsg ? (
+                <span style={{ color: '#047857' }}>{consolidateMsg}</span>
+              ) : (
+                'You are the only one who sees dollar amounts.'
+              )}
             </span>
           </div>
     </PayrollShell>
