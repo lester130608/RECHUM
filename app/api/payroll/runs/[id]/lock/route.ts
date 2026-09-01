@@ -9,7 +9,7 @@ import { requireAnyRole } from '@/lib/auth/roleAccess';
 // POST: Lock pay run (prevents all further edits)
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -18,7 +18,7 @@ export async function POST(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
 
     // Verify pay run exists and is exported
     const { data: payRun, error: payRunError } = await supabase
@@ -132,7 +132,7 @@ export async function POST(
 // DELETE: Emergency unlock (owner only, requires confirmation)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -141,7 +141,7 @@ export async function DELETE(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
     const body = await request.json();
     
     // Require confirmation and reason

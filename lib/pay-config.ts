@@ -8,9 +8,12 @@ export const ROLE_TAX_RULES: Record<string, ('W2' | '1099')[]> = {
   // W2-only roles
   RBT: ['W2'],
   BCABA: ['W2'],
-  EMPLOYEE: ['W2'],
   OUTREACH: ['W2'],
   // Flex roles (W2 or 1099, employee chooses)
+  // EMPLOYEE admite ambos: hay personal de oficina contratado como 1099
+  // (Gabriela Rivas, Oscar Acevedo). La regla anterior lo forzaba a W2 y
+  // era incorrecta. Corregido con Lester el 2026-08-31.
+  EMPLOYEE: ['W2', '1099'],
   BCBA: ['W2', '1099'],
   TCM: ['W2', '1099'],
   THERAPIST: ['W2', '1099'],

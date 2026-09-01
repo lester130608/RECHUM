@@ -119,15 +119,28 @@ function statusBadgeClass(status: AreaStatus) {
   return 'badge';
 }
 
+function withPeriod(base: string, area: AreaRow) {
+  const periodId = area.run?.period_id;
+  return periodId ? `${base}?period_id=${periodId}` : base;
+}
+
+/** Pantalla donde se revisa y aprueba el cálculo del área. */
 function reviewHref(area: AreaRow) {
   const routes: Record<AreaName, string> = {
     BA: '/payroll/owner/ba-calculation',
     CMHC: '/payroll/owner/cmhc-calculation',
     TCM: '/payroll/owner/tcm-calculation',
-    EMP: '/payroll/owner/office-capture',
+    // Antes apuntaba a office-capture, que es la pantalla de CAPTURA.
+    // EMP no tenía pantalla de cálculo y por eso el área nunca llegaba a
+    // escribir pay_run_items ni sumaba al consolidado.
+    EMP: '/payroll/owner/emp-calculation',
   };
-  const periodId = area.run?.period_id;
-  return periodId ? `${routes[area.area]}?period_id=${periodId}` : routes[area.area];
+  return withPeriod(routes[area.area], area);
+}
+
+/** Pantalla de captura. Solo EMP la tiene dentro del flujo del owner. */
+function captureHref(area: AreaRow) {
+  return withPeriod('/payroll/owner/office-capture', area);
 }
 
 function areaDisplayLabel(area: AreaName) {
@@ -163,9 +176,18 @@ function actionCell(area: AreaRow) {
 
   if (area.area === 'EMP' && (area.status === 'not_started' || area.status === 'draft')) {
     return (
-      <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
-        Capture
-      </Link>
+      <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+        <Link href={captureHref(area)} style={smallLinkButtonStyle}>
+          Capture
+        </Link>
+        {/* Con la captura guardada como borrador ya se puede calcular:
+            es el paso que faltaba entre capturar y aprobar. */}
+        {area.status === 'draft' && (
+          <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
+            Calculate
+          </Link>
+        )}
+      </span>
     );
   }
 

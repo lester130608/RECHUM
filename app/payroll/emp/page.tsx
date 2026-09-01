@@ -212,14 +212,28 @@ function EmpRow({ emp, payPeriodStart, payPeriodEnd, readOnly }: RowProps) {
         </tr>
       );
     }
-    const outreachAmount = (emp.outreach_base_total || 0) * ((emp.outreach_pct || 0) / 100);
+    // Si la base no se pudo calcular no se muestra $0.00: sería indistinguible
+    // de un importe real y se pagaría de menos sin que nadie lo note.
+    if (emp.outreach_base_total === null) {
+      return (
+        <tr>
+          <td>{emp.last_name}, {emp.first_name}</td>
+          <td>{emp.outreach_pct}% Outreach</td>
+          <td>--</td>
+          <td><span className="badge warning">No calculado</span></td>
+          <td>{emp.outreach_base_error || 'No se pudo calcular la base del porcentaje'}</td>
+        </tr>
+      );
+    }
+
+    const outreachAmount = emp.outreach_base_total * ((emp.outreach_pct || 0) / 100);
     return (
       <tr>
         <td>{emp.last_name}, {emp.first_name}</td>
         <td>{emp.outreach_pct}% Outreach</td>
         <td>--</td>
         <td>${outreachAmount.toFixed(2)}</td>
-        <td>{emp.outreach_pct}% of BA total ${(emp.outreach_base_total || 0).toFixed(2)}</td>
+        <td>{emp.outreach_pct}% of BA total ${emp.outreach_base_total.toFixed(2)}</td>
       </tr>
     );
   }

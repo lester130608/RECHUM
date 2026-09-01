@@ -221,47 +221,20 @@ async function loadBa(supabase: any, periodId: string) {
 
   if (error) throw new Error('Failed to fetch active BA assignments');
 
-  const employeeIds = (assignments ?? []).map((assignment: any) => assignment.employee_id).filter(Boolean);
-  const { data: rates, error: ratesError } =
-    employeeIds.length > 0
-      ? await supabase
-          .from('pay_rates')
-          .select('employee_id, concept, rate, valid_to')
-          .in('employee_id', employeeIds)
-          .eq('department', 'BA')
-          .in('concept', ['ASSESSMENT', 'REASSESSMENT'])
-          .is('valid_to', null)
-      : { data: [], error: null };
-
-  if (ratesError) throw new Error('Failed to fetch active BA service rates');
-
-  const ratesByEmployee = new Map<string, Record<string, number>>();
-  for (const rate of rates ?? []) {
-    const current = ratesByEmployee.get(rate.employee_id) ?? {};
-    current[rate.concept] = Number(rate.rate);
-    ratesByEmployee.set(rate.employee_id, current);
-  }
-
-  const payload = input.payload as Record<string, { hours?: number; assessment?: number; reassessment?: number }>;
+  // Ya no se leen tarifas de servicio: BA paga solo horas desde el 2026-09-01.
+  const payload = input.payload as Record<string, { hours?: number }>;
   const workers: BaWorkerInput[] = (assignments ?? [])
     .map((assignment: any) => {
       const employee = assignment.employees;
       if (!employee?.id) return null;
-      const captured = payload[assignment.employee_id] ?? { hours: 0, assessment: 0, reassessment: 0 };
-      const employeeRates = ratesByEmployee.get(assignment.employee_id) ?? {};
+      const captured = payload[assignment.employee_id] ?? { hours: 0 };
       return {
         employeeId: assignment.employee_id,
         workerName: `${employee.first_name ?? ''} ${employee.last_name ?? ''}`.trim(),
         role: assignment.role ?? '',
         baseRate: assignment.base_rate == null ? null : Number(assignment.base_rate),
-        serviceRates: {
-          assessment: employeeRates.ASSESSMENT == null ? null : Number(employeeRates.ASSESSMENT),
-          reassessment: employeeRates.REASSESSMENT == null ? null : Number(employeeRates.REASSESSMENT),
-        },
         input: {
           hours: Number(captured.hours ?? 0),
-          assessment: Number(captured.assessment ?? 0),
-          reassessment: Number(captured.reassessment ?? 0),
         },
       };
     })
@@ -417,26 +390,7 @@ function baRows(calculation: Awaited<ReturnType<typeof loadBa>>['calculation']) 
         description: 'BA hours',
         metadata: { department: 'BA', role: row.role, errors: row.errors },
       },
-      {
-        line_type: 'earning' as const,
-        code: 'BA_ASSESSMENT',
-        units: row.assessment.quantity,
-        hours: null,
-        rate: row.assessment.rate ?? 0,
-        amount: row.assessment.amount ?? 0,
-        description: 'BA assessment',
-        metadata: { department: 'BA', concept: 'ASSESSMENT', role: row.role, errors: row.errors },
-      },
-      {
-        line_type: 'earning' as const,
-        code: 'BA_REASSESSMENT',
-        units: row.reassessment.quantity,
-        hours: null,
-        rate: row.reassessment.rate ?? 0,
-        amount: row.reassessment.amount ?? 0,
-        description: 'BA reassessment',
-        metadata: { department: 'BA', concept: 'REASSESSMENT', role: row.role, errors: row.errors },
-      },
+      // BA_ASSESSMENT y BA_REASSESSMENT retirados el 2026-09-01.
     ],
   }));
 }

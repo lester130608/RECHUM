@@ -182,7 +182,7 @@ function HistoricalConfig({ config }: { config: PayRoleConfig }) {
 
 export default function PayConfigurationDetailPage() {
   const params = useParams<{ employee_id: string }>();
-  const employeeId = params.employee_id;
+  const employeeId = params?.employee_id ?? '';
   const { hasPermission, loading: userLoading } = useUser();
   const [detail, setDetail] = useState<PayConfigDetail | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ConfigDraft>>({});

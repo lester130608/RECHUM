@@ -4,9 +4,8 @@ import { requireAnyRole } from '@/lib/auth/roleAccess';
 import { calculateBaPayroll, type BaWorkerInput } from '@/lib/payroll/calcBA';
 
 const BA_AREA = 'BA';
-const SERVICE_CONCEPTS = ['ASSESSMENT', 'REASSESSMENT'] as const;
-
-type ServiceConcept = (typeof SERVICE_CONCEPTS)[number];
+// SERVICE_CONCEPTS (ASSESSMENT / REASSESSMENT) retirado el 2026-09-01.
+// BA paga únicamente horas × tarifa base.
 
 async function loadPeriods(supabase: any) {
   const { data: periods, error } = await supabase
@@ -73,54 +72,17 @@ async function loadBaCalculationContext(supabase: any, periodId: string) {
     throw new Error('Failed to fetch active BA assignments');
   }
 
-  const employeeIds = (assignments ?? [])
-    .map((assignment: any) => assignment.employee_id)
-    .filter(Boolean);
-
-  let serviceRates: any[] = [];
-  if (employeeIds.length > 0) {
-    const { data: rates, error: ratesError } = await supabase
-      .from('pay_rates')
-      .select('employee_id, department, concept, rate, valid_to')
-      .in('employee_id', employeeIds)
-      .eq('department', BA_AREA)
-      .in('concept', [...SERVICE_CONCEPTS])
-      .is('valid_to', null);
-
-    if (ratesError) {
-      throw new Error('Failed to fetch active BA service rates');
-    }
-
-    serviceRates = rates ?? [];
-  }
-
-  const ratesByEmployee = new Map<string, Partial<Record<ServiceConcept, number>>>();
-  for (const rate of serviceRates) {
-    const employeeId = rate.employee_id as string;
-    const concept = rate.concept as ServiceConcept;
-    if (!SERVICE_CONCEPTS.includes(concept)) continue;
-
-    const current = ratesByEmployee.get(employeeId) ?? {};
-    current[concept] = Number(rate.rate);
-    ratesByEmployee.set(employeeId, current);
-  }
-
-  const payload = input.payload as Record<
-    string,
-    { hours?: number; assessment?: number; reassessment?: number }
-  >;
+  // Ya no se leen tarifas de servicio de pay_rates: BA paga solo horas.
+  // Las filas ASSESSMENT/REASSESSMENT de pay_rates se conservan como
+  // histórico, simplemente dejan de consultarse.
+  const payload = input.payload as Record<string, { hours?: number }>;
 
   const workers: BaWorkerInput[] = (assignments ?? [])
     .map((assignment: any) => {
       const employee = assignment.employees;
       if (!employee?.id) return null;
 
-      const captured = payload[assignment.employee_id] ?? {
-        hours: 0,
-        assessment: 0,
-        reassessment: 0,
-      };
-      const employeeRates = ratesByEmployee.get(assignment.employee_id) ?? {};
+      const captured = payload[assignment.employee_id] ?? { hours: 0 };
 
       return {
         employeeId: assignment.employee_id,
@@ -130,20 +92,8 @@ async function loadBaCalculationContext(supabase: any, periodId: string) {
           assignment.base_rate === null || assignment.base_rate === undefined
             ? null
             : Number(assignment.base_rate),
-        serviceRates: {
-          assessment:
-            employeeRates.ASSESSMENT === null || employeeRates.ASSESSMENT === undefined
-              ? null
-              : Number(employeeRates.ASSESSMENT),
-          reassessment:
-            employeeRates.REASSESSMENT === null || employeeRates.REASSESSMENT === undefined
-              ? null
-              : Number(employeeRates.REASSESSMENT),
-        },
         input: {
           hours: Number(captured.hours ?? 0),
-          assessment: Number(captured.assessment ?? 0),
-          reassessment: Number(captured.reassessment ?? 0),
         },
       };
     })
@@ -291,42 +241,8 @@ export async function POST(req: NextRequest) {
           },
           created_by: auth.userId,
         },
-        {
-          pay_run_item_id: item.id,
-          line_type: 'earning',
-          code: 'BA_ASSESSMENT',
-          units: row.assessment.quantity,
-          hours: null,
-          rate: row.assessment.rate ?? 0,
-          amount: row.assessment.amount ?? 0,
-          description: 'BA assessment',
-          metadata: {
-            department: BA_AREA,
-            concept: 'ASSESSMENT',
-            role: row.role,
-            applies: row.assessment.applies,
-            rate_source: 'pay_rates.valid_to_is_null',
-          },
-          created_by: auth.userId,
-        },
-        {
-          pay_run_item_id: item.id,
-          line_type: 'earning',
-          code: 'BA_REASSESSMENT',
-          units: row.reassessment.quantity,
-          hours: null,
-          rate: row.reassessment.rate ?? 0,
-          amount: row.reassessment.amount ?? 0,
-          description: 'BA reassessment',
-          metadata: {
-            department: BA_AREA,
-            concept: 'REASSESSMENT',
-            role: row.role,
-            applies: row.reassessment.applies,
-            rate_source: 'pay_rates.valid_to_is_null',
-          },
-          created_by: auth.userId,
-        },
+        // BA_ASSESSMENT y BA_REASSESSMENT retirados el 2026-09-01: el área ya
+        // no ofrece esos servicios. Las líneas históricas se conservan.
       ];
 
       const { error: linesError } = await supabase.from('pay_lines').insert(lines);

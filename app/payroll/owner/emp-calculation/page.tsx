@@ -5,7 +5,17 @@ import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
+// ---------------------------------------------------------------------------
+// Pantalla de cálculo del área EMP (oficina).
+//
+// Era la única de las cinco áreas sin pantalla de cálculo: en owner/period,
+// tanto "Capture" como "Review & approve" llevaban a office-capture, que es
+// la pantalla de captura. El paso de cálculo no existía en la interfaz, y por
+// eso EMP nunca escribía pay_run_items ni aportaba nada al consolidado.
+// ---------------------------------------------------------------------------
+
 type AreaStatus = 'draft' | 'review_ready' | 'supervisor_approved' | 'owner_approved' | 'consolidated';
+type CaptureType = 'hours' | 'days' | 'outreach';
 
 interface PayPeriod {
   id: string;
@@ -13,42 +23,59 @@ interface PayPeriod {
   start_date: string;
   end_date: string;
   pay_date: string;
-  sup_deadline: string | null;
+  owner_deadline: string | null;
   status: string;
 }
 
-interface BaCalculationRow {
+interface EmpCalculationRow {
   employeeId: string;
   workerName: string;
   role: string;
-  baseRate: number | null;
-  hours: {
-    quantity: number;
-    rate: number | null;
-    amount: number | null;
-    applies: boolean;
-  };
+  captureType: CaptureType;
+  hours: number;
+  days: number;
+  rateUsed: number | null;
   totalAmount: number | null;
   status: 'ready' | 'error';
-  errors: Array<'missing_rate'>;
+  error:
+    | 'missing_hourly_rate'
+    | 'missing_fixed_salary'
+    | 'missing_outreach_percent'
+    | 'missing_outreach_base'
+    | null;
+  note: string | null;
 }
 
-interface BaCalculation {
-  rows: BaCalculationRow[];
+interface EmpCalculation {
+  rows: EmpCalculationRow[];
   totalAmount: number;
   totalHours: number;
   errorCount: number;
   hasErrors: boolean;
 }
 
-interface BaPreviewResponse {
+interface EmpPreviewResponse {
   pay_run: {
     id: string;
     status: AreaStatus;
     last_calculated_at: string | null;
   };
-  calculation: BaCalculation;
+  calculation: EmpCalculation;
 }
+
+const CAPTURE_LABEL: Record<CaptureType, string> = {
+  hours: 'Office hours',
+  days: 'Psychiatrist',
+  outreach: 'Outreach %',
+};
+
+/** Qué hacer ante cada error. Un mensaje que no dice dónde arreglarlo no sirve. */
+const ERROR_HINT: Record<NonNullable<EmpCalculationRow['error']>, string> = {
+  missing_hourly_rate: 'Add HOURLY or FIXED_SALARY in Pay Configuration',
+  missing_fixed_salary: 'Add FIXED_SALARY in Pay Configuration',
+  missing_outreach_percent: 'Add a PERCENT rate in Pay Configuration',
+  missing_outreach_base: 'Calculate the BA area first — the percentage needs its base',
+};
 
 function fmtDate(iso?: string | null) {
   if (!iso) return '-';
@@ -60,26 +87,8 @@ function fmtDate(iso?: string | null) {
 }
 
 function money(value: number | null) {
-  if (value === null) return '-';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value);
-}
-
-function numberValue(value: number | null) {
-  if (value === null) return '-';
-  return Number(value).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function errorLabel(errors: BaCalculationRow['errors']) {
-  if (errors.includes('missing_rate')) {
-    return 'Missing hourly rate — assign in Employees';
-  }
-  return '';
+  if (value === null) return '—';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 }
 
 async function fetchWithSession(url: string, init: RequestInit = {}) {
@@ -93,9 +102,7 @@ async function fetchWithSession(url: string, init: RequestInit = {}) {
 
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${session.access_token}`);
-  if (init.body) {
-    headers.set('Content-Type', 'application/json');
-  }
+  if (init.body) headers.set('Content-Type', 'application/json');
 
   const response = await fetch(url, { ...init, headers });
   const data = await response.json();
@@ -103,7 +110,7 @@ async function fetchWithSession(url: string, init: RequestInit = {}) {
   if (!response.ok) {
     const error = new Error(data.error || 'Request failed') as Error & {
       status?: number;
-      calculation?: BaCalculation;
+      calculation?: EmpCalculation;
     };
     error.status = response.status;
     error.calculation = data.calculation;
@@ -113,11 +120,11 @@ async function fetchWithSession(url: string, init: RequestInit = {}) {
   return data;
 }
 
-export default function BaCalculationPage() {
+export default function EmpCalculationPage() {
   const { user, loading: userLoading } = useSupabaseUser();
   const [periods, setPeriods] = useState<PayPeriod[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
-  const [preview, setPreview] = useState<BaPreviewResponse | null>(null);
+  const [preview, setPreview] = useState<EmpPreviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -134,7 +141,7 @@ export default function BaCalculationPage() {
       setLoading(true);
       setError('');
       try {
-        const data = await fetchWithSession('/api/payroll/ba-calculation');
+        const data = await fetchWithSession('/api/payroll/emp-calculation');
         if (!mounted) return;
         const requestedPeriodId = new URLSearchParams(window.location.search).get('period_id');
         setPeriods(data.periods ?? []);
@@ -173,7 +180,7 @@ export default function BaCalculationPage() {
     setMessage('');
 
     try {
-      const data = await fetchWithSession('/api/payroll/ba-calculation', {
+      const data = await fetchWithSession('/api/payroll/emp-calculation', {
         method: 'POST',
         body: JSON.stringify({ period_id: selectedPeriodId, action: 'preview' }),
       });
@@ -193,25 +200,19 @@ export default function BaCalculationPage() {
     setMessage('');
 
     try {
-      const data = await fetchWithSession('/api/payroll/ba-calculation', {
+      const data = await fetchWithSession('/api/payroll/emp-calculation', {
         method: 'POST',
         body: JSON.stringify({ period_id: selectedPeriodId, action: 'confirm' }),
       });
       setPreview({
         ...preview,
-        pay_run: {
-          ...preview.pay_run,
-          status: 'review_ready',
-        },
+        pay_run: { ...preview.pay_run, status: 'review_ready' },
         calculation: data.calculation,
       });
-      setMessage(data.message || 'BA calculation saved');
+      setMessage(data.message || 'EMP calculation saved');
     } catch (err: any) {
       if (err.calculation) {
-        setPreview({
-          ...(preview as BaPreviewResponse),
-          calculation: err.calculation,
-        });
+        setPreview({ ...(preview as EmpPreviewResponse), calculation: err.calculation });
       }
       setError(err.message);
     } finally {
@@ -231,10 +232,7 @@ export default function BaCalculationPage() {
       });
       setPreview({
         ...preview,
-        pay_run: {
-          ...preview.pay_run,
-          status: data.pay_run?.status ?? 'owner_approved',
-        },
+        pay_run: { ...preview.pay_run, status: data.pay_run?.status ?? 'owner_approved' },
       });
       setMessage(data.message || 'Area approved');
     } catch (err: any) {
@@ -246,7 +244,7 @@ export default function BaCalculationPage() {
 
   if (userLoading || loading) {
     return (
-      <PayrollShell currentLabel="BA Calculation">
+      <PayrollShell currentLabel="EMP Calculation">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ color: '#6b7280', fontSize: 14 }}>Loading...</p>
         </div>
@@ -256,7 +254,7 @@ export default function BaCalculationPage() {
 
   if (!user) {
     return (
-      <PayrollShell currentLabel="BA Calculation">
+      <PayrollShell currentLabel="EMP Calculation">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p>Please log in to continue.</p>
         </div>
@@ -265,12 +263,13 @@ export default function BaCalculationPage() {
   }
 
   return (
-    <PayrollShell currentLabel="BA Calculation">
+    <PayrollShell currentLabel="EMP Calculation">
       <div className="page-header">
         <div className="page-header-content">
-          <h1 style={{ fontSize: 22, marginBottom: 4 }}>BA Calculation Preview</h1>
+          <h1 style={{ fontSize: 22, marginBottom: 4 }}>EMP / Office Calculation Preview</h1>
           <p className="subtitle">
-            Calculate BA dollars from hours × base rate. Preview first, save only after review.
+            Office hours, psychiatrist fixed salaries and the outreach percentage.
+            Preview first, save only after review.
           </p>
         </div>
       </div>
@@ -307,12 +306,17 @@ export default function BaCalculationPage() {
 
         {selectedPeriod && (
           <div className="info" style={{ marginTop: 12 }}>
-            Supervisor deadline: {fmtDate(selectedPeriod.sup_deadline)} · Period status: {selectedPeriod.status}
+            Capture the office hours first in EMP / Office Capture. Period status: {selectedPeriod.status}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-          <button className="dtt-primary" type="button" onClick={calculatePreview} disabled={!selectedPeriodId || calculating}>
+          <button
+            className="dtt-primary"
+            type="button"
+            onClick={calculatePreview}
+            disabled={!selectedPeriodId || calculating}
+          >
             {calculating ? 'Calculating...' : 'Calculate & preview'}
           </button>
           <button
@@ -320,7 +324,7 @@ export default function BaCalculationPage() {
             type="button"
             onClick={confirmSave}
             disabled={!preview || preview.calculation.hasErrors || saving}
-            title={preview?.calculation.hasErrors ? 'Resolve missing rates before saving' : undefined}
+            title={preview?.calculation.hasErrors ? 'Resolve the missing rates before saving' : undefined}
           >
             {saving ? 'Saving...' : 'Confirm & save'}
           </button>
@@ -334,7 +338,7 @@ export default function BaCalculationPage() {
               approving ||
               !['review_ready', 'supervisor_approved'].includes(preview.pay_run.status)
             }
-            title={preview?.calculation.hasErrors ? 'Resolve missing rates before approving' : undefined}
+            title={preview?.calculation.hasErrors ? 'Resolve the missing rates before approving' : undefined}
           >
             {approving ? 'Approving...' : 'Approve area'}
           </button>
@@ -352,55 +356,78 @@ export default function BaCalculationPage() {
             }}
           >
             <div className="stat-card" style={{ boxShadow: 'none' }}>
-              <div className="stat-card-label">BA total</div>
-              <div className="stat-card-value" style={{ fontSize: 20 }}>{money(preview.calculation.totalAmount)}</div>
+              <div className="stat-card-label">EMP total</div>
+              <div className="stat-card-value" style={{ fontSize: 20 }}>
+                {money(preview.calculation.totalAmount)}
+              </div>
             </div>
             <div className="stat-card" style={{ boxShadow: 'none' }}>
               <div className="stat-card-label">Total hours</div>
-              <div className="stat-card-value" style={{ fontSize: 20 }}>{numberValue(preview.calculation.totalHours)}</div>
+              <div className="stat-card-value" style={{ fontSize: 20 }}>
+                {preview.calculation.totalHours}
+              </div>
             </div>
             <div className="stat-card" style={{ boxShadow: 'none' }}>
               <div className="stat-card-label">Errors</div>
-              <div className="stat-card-value" style={{ fontSize: 20 }}>{preview.calculation.errorCount}</div>
+              <div className="stat-card-value" style={{ fontSize: 20 }}>
+                {preview.calculation.errorCount}
+              </div>
             </div>
           </div>
 
           {preview.calculation.hasErrors && (
             <div className="error" style={{ marginBottom: 16 }}>
-              Missing rates found. Assign hourly rates in Employees and service rates in pay rates before saving.
+              {preview.calculation.errorCount} worker(s) cannot be calculated. Nothing is saved
+              until every rate is resolved — an amount of $0.00 would be paid as if it were real.
             </div>
           )}
 
           <div className="section" style={{ padding: 0, overflow: 'hidden' }}>
-            <div className="table-wrapper" style={{ border: 'none', boxShadow: 'none', borderRadius: 0, overflowX: 'auto' }}>
+            <div className="table-wrapper" style={{ border: 'none', boxShadow: 'none', borderRadius: 0 }}>
               <table>
                 <thead>
                   <tr>
                     <th>Worker</th>
-                    <th>Role</th>
+                    <th>Type</th>
                     <th>Hours</th>
-                    <th>Hours $</th>
+                    <th>Rate / salary</th>
                     <th>Total $</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {preview.calculation.rows.map((row) => (
-                    <tr key={row.employeeId} style={row.errors.length > 0 ? { background: '#fff1f2' } : undefined}>
+                    <tr key={row.employeeId} style={row.error ? { background: '#fff1f2' } : undefined}>
                       <td>
                         <strong>{row.workerName}</strong>
+                        {row.note && (
+                          <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>{row.note}</div>
+                        )}
                       </td>
                       <td>
-                        <span className="badge accent">{row.role}</span>
+                        <span className="badge accent">{CAPTURE_LABEL[row.captureType]}</span>
+                        <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>{row.role}</div>
                       </td>
-                      <td>{numberValue(row.hours.quantity)}</td>
-                      <td>{money(row.hours.amount)}</td>
+                      <td>
+                        {row.captureType === 'days'
+                          ? `${row.days} day(s)`
+                          : row.captureType === 'outreach'
+                            ? '—'
+                            : row.hours}
+                      </td>
+                      <td>
+                        {row.captureType === 'outreach'
+                          ? row.rateUsed === null
+                            ? '—'
+                            : `${row.rateUsed}%`
+                          : money(row.rateUsed)}
+                      </td>
                       <td>
                         <strong>{money(row.totalAmount)}</strong>
                       </td>
                       <td>
-                        {row.errors.length > 0 ? (
-                          <span className="badge warning">{errorLabel(row.errors)}</span>
+                        {row.error ? (
+                          <span className="badge warning">{ERROR_HINT[row.error]}</span>
                         ) : (
                           <span className="badge success">Ready</span>
                         )}
@@ -413,8 +440,10 @@ export default function BaCalculationPage() {
           </div>
 
           <div className="info" style={{ marginTop: 14 }}>
-            BA pays hours × base rate from assignments.base_rate. Assessment and re-assessment
-            were retired on 2026-09-01; past periods keep the amounts they were calculated with.
+            Rates come from Pay Configuration (pay_role_rates). FIXED_SALARY takes precedence over
+            HOURLY: whoever has a fixed salary is paid that amount and the captured hours are kept
+            as a record only. Edwina&apos;s percentage is computed live from the BA area, so it
+            recalculates on its own if an RBT is edited after approval.
           </div>
         </>
       )}

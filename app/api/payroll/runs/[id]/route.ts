@@ -10,7 +10,7 @@ import { redactPayrollMoneyForRole } from '@/lib/payrollVisibility';
 // GET: Get pay run details
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
 
     // Get pay run with detailed information
     const owner = isOwner(auth.roleCodes);
@@ -74,15 +74,20 @@ export async function GET(
           )
         `;
 
-    const { data: payRun, error } = await supabase
+    const { data: payRunData, error } = await supabase
       .from('pay_runs')
       .select(selectClause)
       .eq('id', payRunId)
       .single();
 
-    if (error || !payRun) {
+    if (error || !payRunData) {
       return NextResponse.json({ error: 'Pay run not found' }, { status: 404 });
     }
+
+    // El select se arma con un ternario, así que el parser de tipos de
+    // supabase-js no puede inferirlo estáticamente y devuelve ParserError.
+    // La consulta es válida en PostgREST; solo hace falta ensanchar el tipo.
+    const payRun = payRunData as Record<string, any>;
 
     // Calculate summary statistics
     const items = payRun.pay_run_items || [];
@@ -132,7 +137,7 @@ export async function GET(
 // PATCH: Update pay run (limited fields)
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -141,7 +146,7 @@ export async function PATCH(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
     const body = await request.json();
     
     // Only allow certain fields to be updated

@@ -148,9 +148,10 @@ export async function validatePayrollInputs(
     if (row.worker_id) {
       worker = workers.find(w => w.id === row.worker_id);
     } else if (row.worker_name) {
-      worker = workers.find(w => 
-        w.full_name?.toLowerCase().includes(row.worker_name.toLowerCase()) ||
-        `${w.first_name} ${w.last_name}`.toLowerCase().includes(row.worker_name.toLowerCase())
+      const workerName = row.worker_name.toLowerCase();
+      worker = workers.find(w =>
+        w.full_name?.toLowerCase().includes(workerName) ||
+        `${w.first_name} ${w.last_name}`.toLowerCase().includes(workerName)
       );
     }
 

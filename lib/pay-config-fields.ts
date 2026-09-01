@@ -25,11 +25,10 @@ export function getRateFieldsForRole(role: PayRole): RateFieldDefinition[] {
       ];
     case 'BCABA':
     case 'BCBA':
-      return [
-        { rate_key: 'HOURLY', label: 'Hourly' },
-        { rate_key: 'ASSESSMENT', label: 'Assessment' },
-        { rate_key: 'REASSESSMENT', label: 'Reassessment' },
-      ];
+      // ASSESSMENT y REASSESSMENT retirados el 2026-09-01: BA ya no ofrece
+      // esos servicios. Las tarifas históricas se conservan en la base, pero
+      // no se ofrecen para configurar de nuevo.
+      return [{ rate_key: 'HOURLY', label: 'Hourly' }];
     case 'THERAPIST':
       return [
         { rate_key: 'INTAKE', label: 'Intake' },

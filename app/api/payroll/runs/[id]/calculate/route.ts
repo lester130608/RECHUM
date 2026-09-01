@@ -10,7 +10,7 @@ import { requireAnyRole } from '@/lib/auth/roleAccess';
 // POST: Run payroll calculation
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -19,7 +19,7 @@ export async function POST(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
 
     // Verify pay run exists and is not locked
     const { data: payRun, error: payRunError } = await supabase

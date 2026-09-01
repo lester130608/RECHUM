@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/auth/permissions';
 import { jsonError } from '@/lib/pay-config';
-import { getEntrySummary, getModuleStatus, type ModuleName } from '@/lib/owner-view';
+import { getAreaRuns, getEntrySummary, getModuleStatus, type ModuleName } from '@/lib/owner-view';
 
 export async function GET() {
   try {
@@ -24,9 +24,13 @@ export async function GET() {
       periods.map(async (period: any) => {
         const moduleStatuses: Record<string, any> = {};
 
+        // Se leen los runs del periodo una sola vez y se reutilizan para los
+        // cuatro módulos, en lugar de repetir la consulta ocho veces.
+        const areaRuns = await getAreaRuns(supabase, period.id);
+
         for (const module of modules) {
-          const status = await getModuleStatus(supabase, period.id, module);
-          const summary = await getEntrySummary(supabase, period.id, module);
+          const status = await getModuleStatus(supabase, period.id, module, areaRuns);
+          const summary = await getEntrySummary(supabase, period.id, module, areaRuns);
 
           moduleStatuses[module] = {
             status,

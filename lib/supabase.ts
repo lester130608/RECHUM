@@ -1,8 +1,13 @@
-// import { createClient } from "@supabase/supabase-js";
-// Este archivo está deprecado. Usa '@/lib/supabaseClient' en toda la app.
+// lib/supabase.ts
+//
+// DEPRECADO. Este módulo solo re-exporta el cliente de navegador de
+// '@/lib/supabaseClient' para no romper los ~20 imports heredados del módulo HR.
+//
+// No añadas imports nuevos de este archivo. En código nuevo usa:
+//   - Cliente:  import { supabase } from '@/lib/supabaseClient'
+//   - Servidor: import { createServerSupabase } from '@/lib/supabase/server'
+//
+// Antes este archivo estaba enteramente comentado, lo que lo convertía en un
+// módulo sin exports y rompía el typecheck en cada archivo que lo importaba.
 
-// const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-// const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-// export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-// Este archivo está deprecado. Usa '@/lib/supabaseClient' en toda la app.
-
+export { supabase } from '@/lib/supabaseClient';

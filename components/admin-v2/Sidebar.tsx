@@ -42,7 +42,8 @@ export default function SidebarV2() {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const isActive = (href: string) =>
+    pathname === href || (pathname?.startsWith(href + "/") ?? false);
 
   const nav: NavItem[] = [
     { label: "Dashboard", href: "/payroll/runs", icon: LayoutDashboard },

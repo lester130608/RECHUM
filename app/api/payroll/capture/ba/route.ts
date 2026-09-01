@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     const { period_id, action, payload } = body as {
       period_id?: string;
       action?: string;
-      payload?: Record<string, { hours: number; assessment: number; reassessment: number }>;
+      payload?: Record<string, { hours: number }>;
     };
 
     if (!period_id || !action || !payload) {
@@ -171,13 +171,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Invalid payload entry for employee ${empId}` }, { status: 400 });
       }
 
-      if (
-        typeof entry.hours !== 'number' ||
-        typeof entry.assessment !== 'number' ||
-        typeof entry.reassessment !== 'number'
-      ) {
+      if (typeof entry.hours !== 'number') {
         return NextResponse.json(
-          { error: `hours, assessment, and reassessment must be numbers for employee ${empId}` },
+          { error: `hours must be a number for employee ${empId}` },
           { status: 400 }
         );
       }

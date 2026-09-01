@@ -10,7 +10,7 @@ import { requireAnyRole } from '@/lib/auth/roleAccess';
 // GET: Generate and download ADP export CSV
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
 
     // Verify pay run exists and is approved
     const { data: payRun, error: payRunError } = await supabase
@@ -140,7 +140,7 @@ export async function GET(
 // POST: Preview ADP export (without downloading)
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -149,7 +149,7 @@ export async function POST(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
 
     // Generate preview data (same as export but don't update status)
     const exportRows = await buildADPExport(payRunId, supabase);

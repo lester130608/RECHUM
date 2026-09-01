@@ -24,6 +24,8 @@ export type EmpEmployee = {
   is_outreach: boolean;
   outreach_pct: number | null;
   outreach_base_total: number | null;
+  /** Motivo por el que no se pudo calcular la base. Si viene, NO hay subtotal. */
+  outreach_base_error?: string | null;
   outreach_blocked: boolean; // true si BA no submittes
   
   // Existing entry data (si ya capturado)

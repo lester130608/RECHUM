@@ -9,7 +9,7 @@ import { requireAnyRole } from '@/lib/auth/roleAccess';
 // POST: Approve pay run
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -18,7 +18,7 @@ export async function POST(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
 
     // Get pay run details and verify current status
     const { data: payRun, error: payRunError } = await supabase

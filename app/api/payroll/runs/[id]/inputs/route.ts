@@ -15,7 +15,7 @@ import { redactPayrollMoneyForRole } from '@/lib/payrollVisibility';
 // GET: List payroll inputs for a pay run
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -24,7 +24,7 @@ export async function GET(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
 
     // Build query based on user role
     let query = supabase
@@ -52,7 +52,7 @@ export async function GET(
 // POST: Submit payroll input
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -61,7 +61,7 @@ export async function POST(
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
-    const payRunId = params.id;
+    const { id: payRunId } = await context.params;
     const body = await request.json();
     const department = normalizeArea(body.department ?? '');
     const { payload } = body;

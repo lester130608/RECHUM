@@ -3,6 +3,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/auth/permissions';
 import { jsonError } from '@/lib/pay-config';
 import { detectRateConflict } from '@/lib/emp-module';
+import { getBaseReferenceTotal, getModuleStatus } from '@/lib/owner-view';
 import type { EmpEmployee, EmpModuleData } from '@/lib/types/emp-module';
 
 // GET: Cargar datos del módulo EMP para un pay period
@@ -54,7 +55,7 @@ export async function GET(
           last_name,
           full_name
         ),
-        pay_role_rates (rate_key, rate_value)
+        pay_role_rates (rate_key, rate_value, base_reference)
       `)
       .eq('role', 'EMPLOYEE')
       .eq('active', true);
@@ -71,15 +72,12 @@ export async function GET(
       (entries || []).map((e: any) => [e.employee_id, e])
     );
 
-    // 5. Verificar status del módulo BA (para Edwina)
-    const { data: baStatus } = await supabase
-      .from('payroll_module_status')
-      .select('status')
-      .eq('pay_period_id', pay_period_id)
-      .eq('module', 'BA')
-      .maybeSingle();
-
-    const baSubmitted = baStatus?.status === 'SUBMITTED' || baStatus?.status === 'LOCKED';
+    // 5. Verificar status del módulo BA (para Edwina).
+    // Antes leía payroll_module_status, tabla que no existe: baStatus salía
+    // siempre null, baSubmitted siempre false, y el porcentaje de Edwina
+    // quedaba bloqueado de forma permanente sin ningún aviso.
+    const baStatus = await getModuleStatus(supabase, pay_period_id, 'BA');
+    const baSubmitted = baStatus === 'SUBMITTED' || baStatus === 'LOCKED';
 
     // 6. Para cada config, detectar conflictos y armar respuesta
     const employees: EmpEmployee[] = [];
@@ -96,7 +94,12 @@ export async function GET(
       const isOutreach = !!outreachPct;
       
       // Detectar rate conflict solo si es HOURLY estándar
-      let conflict = { hasConflict: false, oldRate: null, newRate: null, changeDate: null };
+      let conflict: {
+        hasConflict: boolean;
+        oldRate: number | null;
+        newRate: number | null;
+        changeDate: string | null;
+      } = { hasConflict: false, oldRate: null, newRate: null, changeDate: null };
       if (!isFixedSalary && !isOutreach) {
         conflict = await detectRateConflict(
           supabase,
@@ -106,17 +109,23 @@ export async function GET(
         );
       }
       
-      // Para Outreach: obtener total BA si está submitted
-      let outreachBaseTotal = null;
+      // Para Outreach: obtener la base del porcentaje si BA ya está submitted.
+      // Antes leía payroll_ba_entries, tabla que no existe; ahora usa la misma
+      // fuente que la consolidación (pay_run_items del run de BA).
+      let outreachBaseTotal: number | null = null;
+      let outreachBaseError: string | null = null;
       if (isOutreach && baSubmitted) {
-        const { data: baTotal } = await supabase
-          .from('payroll_ba_entries')
-          .select('subtotal')
-          .eq('pay_period_id', pay_period_id);
-        outreachBaseTotal = (baTotal || []).reduce(
-          (sum: number, row: any) => sum + (Number(row.subtotal) || 0),
-          0
-        );
+        const baseReference = outreachPct?.base_reference || 'RBT_TOTAL';
+        try {
+          outreachBaseTotal = await getBaseReferenceTotal(
+            supabase,
+            pay_period_id,
+            baseReference
+          );
+        } catch (err: any) {
+          // No se silencia como 0: un cero aquí se pagaría como si fuera real.
+          outreachBaseError = err?.message || 'Error calculando la base OUTREACH';
+        }
       }
       
       const existingEntry = entriesByEmployee.get(emp.id) || null;
@@ -134,7 +143,9 @@ export async function GET(
               rate_decision_note: 'Fixed salary',
               subtotal: fixedAmount,
             }
-          : isOutreach && baSubmitted
+          : // Sin base calculada no se inventa un subtotal: si outreachBaseTotal
+            // es null es que el cálculo falló, y un 0 se pagaría como real.
+            isOutreach && baSubmitted && outreachBaseTotal !== null
             ? {
                 id: `outreach-${emp.id}`,
                 hours: null,
@@ -142,7 +153,7 @@ export async function GET(
                 rate_decision_type: 'outreach_pct',
                 rate_used: null,
                 rate_decision_note: `${outreachPctValue}% of BA total`,
-                subtotal: (outreachBaseTotal || 0) * ((outreachPctValue || 0) / 100),
+                subtotal: outreachBaseTotal * ((outreachPctValue || 0) / 100),
               }
             : null);
       
@@ -160,6 +171,7 @@ export async function GET(
         is_outreach: isOutreach,
         outreach_pct: outreachPctValue,
         outreach_base_total: outreachBaseTotal,
+        outreach_base_error: outreachBaseError,
         outreach_blocked: isOutreach && !baSubmitted,
         entry: computedEntry as any,
       });

@@ -29,8 +29,6 @@ interface Employee {
 
 interface BAEntry {
   hours: number;
-  assessment: number;
-  reassessment: number;
 }
 
 type Payload = Record<string, BAEntry>;
@@ -69,11 +67,6 @@ function hoursLabel(hours: number) {
 
 function roleKey(value: string) {
   return value.trim().toUpperCase();
-}
-
-function isAssessmentEligible(role: string) {
-  const normalized = roleKey(role);
-  return normalized === 'BCABA' || normalized === 'BCBA';
 }
 
 function getDisplayRole(role: string) {
@@ -192,7 +185,7 @@ export default function BACapturePage() {
         } else if (data.employees) {
           const init: Payload = {};
           data.employees.forEach((employee) => {
-            init[employee.id] = { hours: 0, assessment: 0, reassessment: 0 };
+            init[employee.id] = { hours: 0 };
           });
           setPayload(init);
         }
@@ -214,7 +207,7 @@ export default function BACapturePage() {
 
     const init: Payload = {};
     ctx.employees.forEach((employee) => {
-      init[employee.id] = { hours: 0, assessment: 0, reassessment: 0 };
+      init[employee.id] = { hours: 0 };
     });
     setPayload(init);
   }, [ctx?.employees, payload]);
@@ -256,22 +249,17 @@ export default function BACapturePage() {
       [employeeId]: { ...(prev[employeeId] ?? {}), [field]: raw },
     }));
 
-    let val: number;
-    if (field === 'hours') {
-      // Hours support fractions (e.g. 14.75). Keep digits and a single dot.
-      const cleaned = raw.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-      const parsed = parseFloat(cleaned);
-      val = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-    } else {
-      // Assessment / Re-assessment are whole counts.
-      const parsed = parseInt(raw, 10);
-      val = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-    }
+    // Horas con decimales (14.75). Se conservan dígitos y un solo punto.
+    // El parseInt de la rama de assessment desapareció con el concepto:
+    // era justo el que truncaba los decimales en el bug de julio.
+    const cleaned = raw.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+    const parsed = parseFloat(cleaned);
+    const val = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 
     setPayload((prev) => ({
       ...prev,
       [employeeId]: {
-        ...(prev[employeeId] ?? { hours: 0, assessment: 0, reassessment: 0 }),
+        ...(prev[employeeId] ?? { hours: 0 }),
         [field]: val,
       },
     }));
@@ -358,7 +346,7 @@ export default function BACapturePage() {
             <div className="page-header-content">
               <h1 style={{ fontSize: 22, marginBottom: 4 }}>BA — Unit Capture</h1>
               <p className="subtitle">
-                Capture hours for all BA employees and counts for Assessment / Re-assessment.
+                Capture hours for all BA employees.
               </p>
             </div>
           </div>
@@ -438,21 +426,14 @@ export default function BACapturePage() {
                 <table>
                   <thead>
                     <tr>
-                      <th style={{ width: '22%' }}>Worker</th>
-                      <th style={{ width: '12%' }}>Role</th>
-                      <th style={{ width: '13%', textAlign: 'center' }}>Hours</th>
-                      <th style={{ width: '14%', textAlign: 'center' }}>Assessment</th>
-                      <th style={{ width: '16%', textAlign: 'center' }}>Re-assessment</th>
+                      <th style={{ width: '40%' }}>Worker</th>
+                      <th style={{ width: '30%' }}>Role</th>
+                      <th style={{ width: '30%', textAlign: 'center' }}>Hours</th>
                     </tr>
                   </thead>
                   <tbody>
                     {ctx.employees.map((employee) => {
-                      const entry = payload[employee.id] ?? {
-                        hours: 0,
-                        assessment: 0,
-                        reassessment: 0,
-                      };
-                      const eligible = isAssessmentEligible(employee.role);
+                      const entry = payload[employee.id] ?? { hours: 0 };
 
                       return (
                         <tr key={employee.id}>
@@ -474,48 +455,6 @@ export default function BACapturePage() {
                               onChange={(e) => handleFieldChange(employee.id, 'hours', e.target.value)}
                             />
                           </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {eligible ? (
-                              <input
-                                className="dtt-units-input"
-                                type="number"
-                                min={0}
-                                step={1}
-                                value={entry.assessment}
-                                disabled={isReadOnly}
-                                onChange={(e) => handleFieldChange(employee.id, 'assessment', e.target.value)}
-                              />
-                            ) : (
-                              <input
-                                className="dtt-units-input"
-                                type="text"
-                                value=""
-                                placeholder="—"
-                                disabled
-                              />
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {eligible ? (
-                              <input
-                                className="dtt-units-input"
-                                type="number"
-                                min={0}
-                                step={1}
-                                value={entry.reassessment}
-                                disabled={isReadOnly}
-                                onChange={(e) => handleFieldChange(employee.id, 'reassessment', e.target.value)}
-                              />
-                            ) : (
-                              <input
-                                className="dtt-units-input"
-                                type="text"
-                                value=""
-                                placeholder="—"
-                                disabled
-                              />
-                            )}
-                          </td>
                         </tr>
                       );
                     })}
@@ -531,7 +470,7 @@ export default function BACapturePage() {
                   borderTop: '1px solid #f0f1f3',
                 }}
               >
-                Hours are captured once per period. Assessment and Re-assessment are count-based and available only for BCaBA / BCBA.
+                Hours are captured once per period. Fractions are allowed (e.g. 14.75).
               </div>
             </div>
           ) : (
