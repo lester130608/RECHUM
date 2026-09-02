@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from "react";
 import { PayrollShell } from "@/components/Payroll/PayrollShell";
 import { supabase } from "@/lib/supabaseClient";
 import { useSupabaseUser } from "@/hooks/useSupabaseUser";
+import { chooseCurrentPeriodId } from '@/lib/payroll/periods';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -172,7 +173,11 @@ export default function TCMCapturePage() {
       setRoleCodes(ctxData.role_codes ?? []);
 
       if (data.pay_periods.length > 0) {
-        setSelectedPeriodId(data.pay_periods[0].id);
+        // El periodo actual, no el primero de la lista: ordenados por
+        // pay_date descendente, el primero es el mas lejano en el futuro.
+        setSelectedPeriodId(
+          chooseCurrentPeriodId(data.pay_periods) ?? data.pay_periods[0].id
+        );
       }
     } catch (err: any) {
       if (err.status === 401 || err.status === 403) {

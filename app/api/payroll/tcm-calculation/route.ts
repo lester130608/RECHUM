@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAnyRole } from '@/lib/auth/roleAccess';
 import { calculateTcmPayroll, type TcmWorkerInput } from '@/lib/payroll/calcTCM';
+import { chooseCurrentPeriodId } from '@/lib/payroll/periods';
 
 const TCM_AREA = 'TCM';
 
@@ -121,7 +122,8 @@ export async function GET() {
 
     return NextResponse.json({
       periods,
-      selected_period_id: periods[0]?.id ?? null,
+      // El periodo actual, no el mas lejano en el futuro.
+      selected_period_id: chooseCurrentPeriodId(periods),
     });
   } catch (error: any) {
     console.error('GET /api/payroll/tcm-calculation error:', error);

@@ -4,6 +4,7 @@ import { requireAnyRole } from '@/lib/auth/roleAccess';
 import { calculateEmpPayroll, type EmpWorkerInput } from '@/lib/payroll/calcEMP';
 import { PSYQ_EMPLOYEE_IDS } from '@/lib/payroll/calcPSYQ';
 import { getAreaRuns, getBaseReferenceTotal } from '@/lib/owner-view';
+import { chooseCurrentPeriodId } from '@/lib/payroll/periods';
 
 // ---------------------------------------------------------------------------
 // Cálculo del área EMP (oficina).
@@ -210,7 +211,8 @@ export async function GET() {
 
     return NextResponse.json({
       periods,
-      selected_period_id: periods[0]?.id ?? null,
+      // El periodo actual, no el mas lejano en el futuro.
+      selected_period_id: chooseCurrentPeriodId(periods),
     });
   } catch (error: any) {
     console.error('GET /api/payroll/emp-calculation error:', error);

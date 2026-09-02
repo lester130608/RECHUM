@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAnyRole } from '@/lib/auth/roleAccess';
+import { chooseCurrentPeriodId } from '@/lib/payroll/periods';
 import {
   PSYQ_EMPLOYEE_IDS,
   calculatePsyqPayroll,
@@ -120,7 +121,8 @@ export async function GET() {
 
     return NextResponse.json({
       periods,
-      selected_period_id: periods[0]?.id ?? null,
+      // El periodo actual, no el mas lejano en el futuro.
+      selected_period_id: chooseCurrentPeriodId(periods),
     });
   } catch (error: any) {
     console.error('GET /api/payroll/psyq-calculation error:', error);

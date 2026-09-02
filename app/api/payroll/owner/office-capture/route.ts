@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAnyRole } from '@/lib/auth/roleAccess';
 import { PSYQ_EMPLOYEE_IDS } from '@/lib/payroll/calcPSYQ';
+import { chooseCurrentPeriodId } from '@/lib/payroll/periods';
 
 const OFFICE_RUN_AREA = 'EMP';
 const OFFICE_INPUT_DEPARTMENT = 'EMP';
@@ -178,7 +179,7 @@ export async function GET(req: NextRequest) {
 
     const periods = await loadPeriods(supabase);
     const requestedPeriodId = new URL(req.url).searchParams.get('period_id');
-    const selectedPeriodId = requestedPeriodId || periods[0]?.id || null;
+    const selectedPeriodId = requestedPeriodId || chooseCurrentPeriodId(periods);
     const employees = await loadOfficeEmployees(supabase);
     const existing = selectedPeriodId
       ? await loadExistingInput(supabase, selectedPeriodId)

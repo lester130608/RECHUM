@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAnyRole } from '@/lib/auth/roleAccess';
 import { calculateBaPayroll, type BaWorkerInput } from '@/lib/payroll/calcBA';
+import { chooseCurrentPeriodId } from '@/lib/payroll/periods';
 
 const BA_AREA = 'BA';
 // SERVICE_CONCEPTS (ASSESSMENT / REASSESSMENT) retirado el 2026-09-01.
@@ -119,7 +120,8 @@ export async function GET() {
 
     return NextResponse.json({
       periods,
-      selected_period_id: periods[0]?.id ?? null,
+      // El periodo actual, no el mas lejano en el futuro.
+      selected_period_id: chooseCurrentPeriodId(periods),
     });
   } catch (error: any) {
     console.error('GET /api/payroll/ba-calculation error:', error);
