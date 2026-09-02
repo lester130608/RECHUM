@@ -359,8 +359,15 @@ export async function POST(req: NextRequest) {
       pay_run_id: run.id,
       input: savedInput,
     });
-  } catch (err) {
+  } catch (err: any) {
+    // Se devuelve el mensaje real, no un 'Internal server error' generico.
+    // El submit dispara el calculo del area, asi que aqui aterrizan fallos
+    // de tarifas, de estado del run o de escritura de lineas. Ocultarlos
+    // obliga a ir a los logs de Vercel para saber que ha pasado.
     console.error('POST /api/payroll/capture/cmhc error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
