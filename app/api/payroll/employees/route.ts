@@ -212,7 +212,11 @@ export async function POST(req: NextRequest) {
         department: area,
         role,
         tax_type: 'W2',
-        adp_pay_mode: 'hourly',
+        // En mayúsculas: assignments_adp_pay_mode_check solo admite
+        // 'HOURLY' o 'FLAT'. Con 'hourly' la inserción fallaba siempre,
+        // incluso para el owner, y el alta de empleados no funcionaba
+        // para nadie desde la pantalla de payroll.
+        adp_pay_mode: 'HOURLY',
         base_rate: rate,
         active: true,
       });
