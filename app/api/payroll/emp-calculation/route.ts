@@ -80,7 +80,7 @@ async function loadEmpCalculationContext(supabase: any, periodId: string) {
       role,
       tax_type,
       employees (id, first_name, last_name),
-      pay_role_rates (rate_key, rate_value, base_reference)
+      pay_role_rates (rate_key, rate_value, base_reference, notes)
     `)
     .eq('active', true);
 
@@ -174,6 +174,9 @@ async function loadEmpCalculationContext(supabase: any, periodId: string) {
       captureType,
       hourlyRate: toRateValue(findRate(roleConfig?.pay_role_rates, 'HOURLY')),
       fixedSalary: toRateValue(findRate(roleConfig?.pay_role_rates, 'FIXED_SALARY')),
+      // La unidad ('week', 'period') viaja en el campo notes de la tarifa.
+      fixedSalaryUnit:
+        findRate(roleConfig?.pay_role_rates, 'FIXED_SALARY')?.notes ?? null,
       outreachPercent: toRateValue(percentRate),
       outreachBase: captureType === 'outreach' ? await resolveBase(baseReference) : null,
       outreachBaseReference: baseReference,

@@ -34,8 +34,18 @@ export type EmpWorkerInput = {
   /** Tarifa por hora. Solo se usa con captureType 'hours'. */
   hourlyRate: number | null;
 
-  /** Salario fijo del periodo. Solo se usa con captureType 'days'. */
+  /**
+   * Tarifa de UNA unidad de salario fijo, no el total del periodo.
+   *
+   * El importe es `unidades capturadas × esta tarifa`. La unidad no es la
+   * misma para todos: Yeline y Carlos Ripoll cobran por semana (550 y 1000),
+   * Oscar y Julio por quincena (850 y 1500). Confirmado con Lester el
+   * 2026-09-01.
+   */
   fixedSalary: number | null;
+
+  /** Etiqueta de la unidad, solo para mostrar: 'week', 'period'... */
+  fixedSalaryUnit?: string | null;
 
   /** Porcentaje OUTREACH, en tanto por ciento (1.5 = 1,5 %). */
   outreachPercent: number | null;
@@ -55,8 +65,10 @@ export type EmpWorkerInput = {
 export type EmpCalculationError =
   | 'missing_hourly_rate'
   | 'missing_fixed_salary'
+  | 'missing_units'
   | 'missing_outreach_percent'
-  | 'missing_outreach_base';
+  | 'missing_outreach_base'
+  | 'zero_outreach_base';
 
 export type EmpEmployeeCalculation = {
   employeeId: string;
@@ -122,18 +134,30 @@ function calculateRow(worker: EmpWorkerInput): EmpEmployeeCalculation {
       // tarifa horaria y las horas quedan como registro. Comprobado con Lester
       // el 2026-08-31.
       if (worker.fixedSalary !== null && worker.fixedSalary !== undefined) {
-        const salary = roundToTwoHalfUp(toFiniteNumber(worker.fixedSalary));
+        const unitRate = roundToTwoHalfUp(toFiniteNumber(worker.fixedSalary));
+        const unidad = worker.fixedSalaryUnit || 'unidad';
+
+        // Las unidades se capturan en el mismo campo que las horas.
+        // Si no se captura ninguna, el importe es cero y hay que verlo,
+        // no pagarlo: por eso sale como error y no como 0,00 válido.
+        if (hours <= 0) {
+          return {
+            ...base,
+            rateUsed: unitRate,
+            totalAmount: null,
+            status: 'error',
+            error: 'missing_units',
+            note: `Sin unidades capturadas. Cobra ${unitRate} por ${unidad}.`,
+          };
+        }
 
         return {
           ...base,
-          rateUsed: salary,
-          totalAmount: salary,
+          rateUsed: unitRate,
+          totalAmount: roundToTwoHalfUp(hours * unitRate),
           status: 'ready',
           error: null,
-          note:
-            hours > 0
-              ? `${hours} h registradas. Salario fijo del periodo: no se prorratea.`
-              : 'Salario fijo del periodo',
+          note: `${hours} × ${unitRate} por ${unidad}`,
         };
       }
 
@@ -173,18 +197,29 @@ function calculateRow(worker: EmpWorkerInput): EmpEmployeeCalculation {
         };
       }
 
-      const salary = roundToTwoHalfUp(toFiniteNumber(worker.fixedSalary));
+      const unitRate = roundToTwoHalfUp(toFiniteNumber(worker.fixedSalary));
+      const unidad = worker.fixedSalaryUnit || 'unidad';
+
+      // Mismo criterio que el personal de oficina con salario fijo: sin
+      // unidades no hay importe, y eso se ve como error, no como cero.
+      if (days <= 0) {
+        return {
+          ...base,
+          rateUsed: unitRate,
+          totalAmount: null,
+          status: 'error',
+          error: 'missing_units',
+          note: `Sin unidades capturadas. Cobra ${unitRate} por ${unidad}.`,
+        };
+      }
 
       return {
         ...base,
-        rateUsed: salary,
-        totalAmount: salary,
+        rateUsed: unitRate,
+        totalAmount: roundToTwoHalfUp(days * unitRate),
         status: 'ready',
         error: null,
-        note:
-          days > 0
-            ? `${days} día(s) registrados. El salario es fijo: no se prorratea.`
-            : 'Salario fijo del periodo',
+        note: `${days} × ${unitRate} por ${unidad}`,
       };
     }
 
@@ -218,6 +253,23 @@ function calculateRow(worker: EmpWorkerInput): EmpEmployeeCalculation {
       const percent = toFiniteNumber(worker.outreachPercent);
       const baseAmount = toFiniteNumber(worker.outreachBase);
       const reference = worker.outreachBaseReference ?? 'base';
+
+      // Una base de CERO no es un importe válido, es un aviso de que el área
+      // de origen todavía no está calculada. La primera versión la trataba
+      // como buena y sacaba $0.00 con estado "Ready": exactamente el cero
+      // silencioso que este motor existe para evitar, colado por otra puerta.
+      if (baseAmount <= 0) {
+        return {
+          ...base,
+          rateUsed: percent,
+          totalAmount: null,
+          status: 'error',
+          error: 'zero_outreach_base',
+          note:
+            `La base ${reference} vale 0. Normalmente significa que el área de ` +
+            `origen aún no se ha calculado. Calcúlala primero.`,
+        };
+      }
 
       return {
         ...base,
