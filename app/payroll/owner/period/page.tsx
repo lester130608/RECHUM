@@ -451,6 +451,18 @@ export default function OwnerPeriodPage() {
             >
               {consolidating ? 'Consolidating…' : 'Consolidate areas'}
             </button>
+            {/* El reporte es el destino natural despues de consolidar, y no
+                habia forma de llegar desde aqui: el enlace solo existia en
+                /payroll/owner. Es la pantalla con el total por persona y el
+                CSV, o sea lo que se usa para rellenar ADP a mano. */}
+            {selectedPeriodId && (
+              <Link
+                href={`/payroll/owner/review/${selectedPeriodId}`}
+                style={{ ...smallLinkButtonStyle, padding: '0.5rem 0.9rem' }}
+              >
+                Ver reporte por persona
+              </Link>
+            )}
             <button
               className="dtt-secondary"
               type="button"

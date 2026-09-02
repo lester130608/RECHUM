@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
 
     const { data: periods, error: periodsError } = await supabase
       .from('pay_periods')
-      .select('id, week_code, start_date, end_date, pay_date, owner_deadline, status')
+      // capture_opens_at hace falta para elegir bien el periodo actual: sin
+      // ella, chooseCurrentPeriod cae a start_date y varios periodos solapan.
+      .select('id, week_code, start_date, end_date, pay_date, capture_opens_at, owner_deadline, status')
       .order('pay_date', { ascending: false });
 
     if (periodsError) {

@@ -63,12 +63,24 @@ export function chooseCurrentPeriod<T extends PeriodLike>(
 ): T | null {
   if (!periods || periods.length === 0) return null;
 
-  // 1. Abierto ahora
-  const active = periods.find((period) => {
+  // 1. Abierto ahora.
+  //
+  // Puede haber VARIOS abiertos a la vez: el 1 de septiembre, tanto el
+  // periodo del 8 al 21 de agosto (se paga el 4 de septiembre) como el del
+  // 22 de agosto al 4 de septiembre (se paga el 18) tienen esa fecha dentro
+  // de su ventana. Se elige el que se paga ANTES, que es el que toca cerrar.
+  //
+  // Sin este desempate el resultado dependia del orden en que llegara la
+  // lista, y como viene ordenada por pay_date descendente salia el mas
+  // lejano: justo el error que veniamos arreglando.
+  const abiertos = periods.filter((period) => {
     const opensAt = period.capture_opens_at || period.start_date;
     return Boolean(opensAt) && opensAt! <= today && today <= period.pay_date;
   });
-  if (active) return active;
+
+  if (abiertos.length > 0) {
+    return [...abiertos].sort((a, b) => a.pay_date.localeCompare(b.pay_date))[0];
+  }
 
   // 2. El próximo que se paga
   const upcoming = [...periods]

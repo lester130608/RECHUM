@@ -8,7 +8,6 @@ import {
   isOwner,
   requireAnyRole,
 } from '@/lib/auth/roleAccess';
-import { calculateAndSaveArea } from '@/lib/payroll/areaCalculationRunner';
 
 const FLORIDA_TZ = 'America/New_York';
 const TCM_AREA = 'TCM';
@@ -350,13 +349,17 @@ export async function POST(req: NextRequest) {
         .eq('id', run.id)
         .eq('status', 'draft');
 
-      await calculateAndSaveArea({
-        supabase,
-        area: TCM_AREA,
-        periodId: period_id,
-        actorId: auth.userId,
-        allowErrors: true,
-      });
+      // El calculo YA NO se dispara aqui.
+      //
+      // La RLS de pay_run_items y pay_lines solo deja escribir a owner y
+      // admin, asi que cuando un supervisor enviaba, el calculo intentaba
+      // guardar importes y la base lo rechazaba: "Failed to save pay item".
+      // Como el estado ya se habia escrito antes, el area quedaba marcada
+      // como enviada pero sin un solo importe detras.
+      //
+      // Ahora el supervisor solo entrega sus horas. El owner calcula y
+      // aprueba desde su pantalla de area. Ademas de arreglar el fallo, es
+      // mejor reparto: nadie escribe dinero sin que el owner lo haya visto.
     }
 
     // Audit log (fire-and-forget)
