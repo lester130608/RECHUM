@@ -165,7 +165,14 @@ export default function OfficeCapturePage() {
     ctx?.existing_run?.status ?? ''
   );
 
-  const readOnly = submitted || locked;
+  // Solo bloquea si el area ya esta aprobada o cerrada, NO por estar enviada.
+  //
+  // EMP la captura el owner, que es tambien quien aprueba: no hay un supervisor
+  // a quien proteger de una edicion posterior. Bloquear por 'submitted' dejaba
+  // al owner sin poder corregirse a si mismo, y como un residuo de pruebas
+  // habia dejado el area en 'review_ready', las horas de oficina no se podian
+  // meter de ninguna forma desde la aplicacion.
+  const readOnly = locked;
 
   function handleValueChange(employee: OfficeEmployee, raw: string) {
     const value = Math.max(0, Number(raw) || 0);
@@ -321,6 +328,9 @@ export default function OfficeCapturePage() {
               Submitted {new Date(ctx.existing_input.submitted_at).toLocaleString()}
             </span>
           )}
+          <span style={{ marginLeft: 8, fontWeight: 600 }}>
+            You can still edit and save until the area is approved.
+          </span>
         </div>
       )}
 

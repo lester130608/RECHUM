@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAnyRole } from '@/lib/auth/roleAccess';
+import { chooseCurrentPeriodId } from '@/lib/payroll/periods';
 
 const AREAS = ['BA', 'CMHC', 'TCM', 'EMP'] as const;
 
@@ -29,7 +30,8 @@ export async function GET(req: NextRequest) {
 
     const periodList = periods ?? [];
     const requestedPeriodId = new URL(req.url).searchParams.get('period_id');
-    const selectedPeriodId = requestedPeriodId || periodList[0]?.id || null;
+    // El periodo actual, no el mas lejano en el futuro.
+    const selectedPeriodId = requestedPeriodId || chooseCurrentPeriodId(periodList);
 
     let areaRuns: any[] = [];
     let consolidatedRun: any = null;

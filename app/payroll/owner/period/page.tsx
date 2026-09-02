@@ -166,28 +166,33 @@ function actionCell(area: AreaRow) {
     return <span style={{ color: '#0d7a5f', fontWeight: 600 }}>Ready</span>;
   }
 
-  if (area.status === 'review_ready' || area.status === 'supervisor_approved') {
-    return (
-      <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
-        Review &amp; approve
-      </Link>
-    );
-  }
+  const puedeCalcular =
+    area.status === 'review_ready' || area.status === 'supervisor_approved';
 
-  if (area.area === 'EMP' && (area.status === 'not_started' || area.status === 'draft')) {
+  // EMP la captura el owner, así que su enlace de captura tiene que estar
+  // disponible SIEMPRE hasta que el área se apruebe. Antes solo aparecía en
+  // 'not_started' o 'draft': si el área quedaba en 'review_ready' —por un
+  // envío anterior o por un residuo de pruebas— la pantalla solo ofrecía
+  // "Review & approve", que lleva al cálculo, y la captura se volvía
+  // inalcanzable. No había forma de meter las horas desde la aplicación.
+  if (area.area === 'EMP') {
     return (
       <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
         <Link href={captureHref(area)} style={smallLinkButtonStyle}>
           Capture
         </Link>
-        {/* Con la captura guardada como borrador ya se puede calcular:
-            es el paso que faltaba entre capturar y aprobar. */}
-        {area.status === 'draft' && (
-          <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
-            Calculate
-          </Link>
-        )}
+        <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
+          {puedeCalcular ? 'Review & approve' : 'Calculate'}
+        </Link>
       </span>
+    );
+  }
+
+  if (puedeCalcular) {
+    return (
+      <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
+        Review &amp; approve
+      </Link>
     );
   }
 

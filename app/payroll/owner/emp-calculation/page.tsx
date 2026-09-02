@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
@@ -306,7 +307,18 @@ export default function EmpCalculationPage() {
 
         {selectedPeriod && (
           <div className="info" style={{ marginTop: 12 }}>
-            Capture the office hours first in EMP / Office Capture. Period status: {selectedPeriod.status}
+            {/* Enlace de verdad, no solo texto: esta pantalla calcula pero no
+                captura, y sin el enlace no habia forma evidente de llegar a
+                donde se meten las horas. */}
+            Enter the office hours first in{' '}
+            <Link
+              href={`/payroll/owner/office-capture?period_id=${selectedPeriodId}`}
+              style={{ fontWeight: 700, textDecoration: 'underline' }}
+            >
+              EMP / Office Capture
+            </Link>
+            . This screen only calculates what was captured there. Period status:{' '}
+            {selectedPeriod.status}
           </div>
         )}
 

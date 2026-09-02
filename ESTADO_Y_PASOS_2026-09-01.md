@@ -47,6 +47,12 @@ Además del error concreto, **esto hay que arreglarlo de fondo**: o los tres pas
 
 **CMHC y EMP son residuos de sesiones anteriores.** Hay que limpiarlos antes de consolidar: si se consolida con ellos dentro, el total sale mal y sin explicación aparente.
 
+**Y hay más residuos en otros periodos.** En `P-20261212` (diciembre) EMP figura
+como **`owner_approved`**. Ese es peor que los de agosto: el sistema bloquea el
+recálculo de un área aprobada, así que si algún día se trabaja ese periodo habrá
+que desaprobarlo primero. La limpieza tiene que barrer todos los periodos, no
+solo el de agosto.
+
 ### Incoherencias de datos pendientes
 
 - **Payload de BA: 36 personas. Plantilla activa: 38.** Dos sin entrada.
@@ -68,6 +74,12 @@ Además del error concreto, **esto hay que arreglarlo de fondo**: o los tres pas
 - El owner puede corregir una captura ya enviada mientras el área no esté aprobada.
 - Las capturas devuelven el error real en vez de un 500 genérico.
 - Adria Vargas Gonzales tenía registro de empleada sin asignación. Arreglado.
+- **El periodo por defecto es ahora el actual.** Las pantallas cogían `periods[0]`
+  de una lista ordenada por `pay_date` descendente, o sea el más lejano en el
+  futuro: el 1 de septiembre ofrecían el periodo del 12 al 25 de diciembre.
+  Capturar en el periodo equivocado es fácil de hacer y difícil de ver. La
+  lógica correcta ya existía en el dashboard; ahora está en
+  `lib/payroll/periods.ts` y la usan las nueve pantallas.
 
 **Verificado contra el Excel:** los importes de BA cuadran uno a uno, decimales incluidos (Lesvia 124.25, Cristina 16.25, Debora 24.75, Edwina 83.5).
 
