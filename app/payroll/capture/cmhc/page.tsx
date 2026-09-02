@@ -227,7 +227,11 @@ export default function CMHCCapturePage() {
     ctx?.existing_run?.status === 'exported' ||
     ctx?.existing_run?.status === 'locked';
 
-  const isReadOnly = alreadySubmitted || runLocked;
+  // El owner puede corregir una captura ya enviada mientras el area no
+  // este aprobada. Sin esto, un cero mal metido por un supervisor solo se
+  // podia arreglar tocando la base a mano: con 46 personas, eso pasa.
+  const canOverrideSubmitted = Boolean(ctx?.is_owner);
+  const isReadOnly = (alreadySubmitted && !canOverrideSubmitted) || runLocked;
 
   function handleQuantityChange(employeeId: string, service: string, raw: string) {
     const value = Math.max(0, parseInt(raw, 10) || 0);
@@ -500,7 +504,7 @@ export default function CMHCCapturePage() {
 
           {!runLocked && ctx?.pay_periods && ctx.pay_periods.length > 0 && (
             <div className="dtt-action-bar">
-              {!alreadySubmitted && (
+              {(!alreadySubmitted || canOverrideSubmitted) && (
                 <>
                   <button
                     className="dtt-secondary"

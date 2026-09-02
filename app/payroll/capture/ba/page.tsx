@@ -225,7 +225,11 @@ export default function BACapturePage() {
     ctx?.existing_run?.status === 'exported' ||
     ctx?.existing_run?.status === 'locked';
 
-  const isReadOnly = alreadySubmitted || runLocked;
+  // El owner puede corregir una captura ya enviada mientras el area no
+  // este aprobada. Sin esto, un cero mal metido por un supervisor solo se
+  // podia arreglar tocando la base a mano: con 46 personas, eso pasa.
+  const canOverrideSubmitted = Boolean(ctx?.is_owner);
+  const isReadOnly = (alreadySubmitted && !canOverrideSubmitted) || runLocked;
 
   // What to show in the input: the raw text being typed if present,
   // otherwise the numeric value from the payload.
@@ -406,6 +410,11 @@ export default function BACapturePage() {
           {alreadySubmitted && (
             <div className="dtt-submitted-banner">
               ✓ These units have been submitted for approval.
+              {canOverrideSubmitted && (
+                <span style={{ marginLeft: 8, fontWeight: 600 }}>
+                  As owner you can still correct and re-submit until the area is approved.
+                </span>
+              )}
               {ctx?.existing_input?.submitted_at && (
                 <span style={{ marginLeft: 8, opacity: 0.75 }}>
                   Submitted {new Date(ctx.existing_input.submitted_at).toLocaleString()}
@@ -487,7 +496,7 @@ export default function BACapturePage() {
 
           {!runLocked && ctx?.pay_periods && ctx.pay_periods.length > 0 && (
             <div className="dtt-action-bar">
-              {!alreadySubmitted && (
+              {(!alreadySubmitted || canOverrideSubmitted) && (
                 <>
                   <button
                     className="dtt-secondary"
