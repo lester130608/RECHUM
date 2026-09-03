@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@/hooks/useUser";
 import { supabase } from "@/lib/supabaseClient";
+import { PayrollShell } from '@/components/Payroll/PayrollShell';
 
 type ModuleInfo = {
   status: string;
@@ -66,25 +67,29 @@ export default function OwnerViewPage() {
     loadSummary();
   }, [loadSummary]);
 
-  if (userLoading) return <div className="container">Loading...</div>;
+  if (userLoading) return (
+    <PayrollShell currentLabel="Owner">Loading...</PayrollShell>
+  );
   if (!hasPermission("manage_employees")) {
     return (
-      <div className="container">
+      <PayrollShell currentLabel="Owner">
         <div className="error">No permission</div>
-      </div>
+      </PayrollShell>
     );
   }
-  if (loading) return <div className="container">Loading...</div>;
+  if (loading) return (
+    <PayrollShell currentLabel="Owner">Loading...</PayrollShell>
+  );
   if (error) {
     return (
-      <div className="container">
+      <PayrollShell currentLabel="Owner">
         <div className="error">{error}</div>
-      </div>
+      </PayrollShell>
     );
   }
 
   return (
-    <div className="container">
+    <PayrollShell currentLabel="Owner">
       <div className="page-header">
         <div className="page-header-content">
           <h1>Payroll Owner View</h1>
@@ -191,7 +196,7 @@ export default function OwnerViewPage() {
           )
         )}
       </div>
-    </div>
+    </PayrollShell>
   );
 }
 

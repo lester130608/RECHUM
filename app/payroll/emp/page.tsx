@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useUser } from "@/hooks/useUser";
 import { supabase } from "@/lib/supabaseClient";
 import type { EmpModuleData, EmpEmployee, RateDecisionType } from "@/lib/types/emp-module";
+import { PayrollShell } from '@/components/Payroll/PayrollShell';
 
 type ActivePeriodResponse = {
   active: any | null;
@@ -75,15 +76,19 @@ export default function EmpModulePage() {
     if (activePeriod) loadModule();
   }, [activePeriod, loadModule]);
 
-  if (userLoading) return <div className="container">Loading...</div>;
+  if (userLoading) return (
+    <PayrollShell currentLabel="EMP / Office">Loading...</PayrollShell>
+  );
   if (!hasPermission('manage_employees')) {
-    return <div className="container"><div className="error">No permission</div></div>;
+    return (
+    <PayrollShell currentLabel="EMP / Office"><div className="error">No permission</div></PayrollShell>
+  );
   }
 
   // No hay período activo: mostrar info + link a history
   if (!activePeriod) {
     return (
-      <div className="container">
+      <PayrollShell currentLabel="EMP / Office">
         <div className="page-header">
           <div className="page-header-content">
             <h1>EMP Module</h1>
@@ -109,18 +114,24 @@ export default function EmpModulePage() {
             )}
           </div>
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
-  if (loading) return <div className="container">Loading module...</div>;
-  if (error) return <div className="container"><div className="error">{error}</div></div>;
-  if (!data) return <div className="container">No data</div>;
+  if (loading) return (
+    <PayrollShell currentLabel="EMP / Office">Loading module...</PayrollShell>
+  );
+  if (error) return (
+    <PayrollShell currentLabel="EMP / Office"><div className="error">{error}</div></PayrollShell>
+  );
+  if (!data) return (
+    <PayrollShell currentLabel="EMP / Office">No data</PayrollShell>
+  );
 
   const isReadOnly = true;
 
   return (
-    <div className="container">
+    <PayrollShell currentLabel="EMP / Office">
       <div className="page-header">
         <div className="page-header-content">
           <h1>EMP Module</h1>
@@ -183,7 +194,7 @@ export default function EmpModulePage() {
         </div>
         <span className="badge">READ ONLY</span>
       </div>
-    </div>
+    </PayrollShell>
   );
 }
 

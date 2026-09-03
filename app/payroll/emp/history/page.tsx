@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@/hooks/useUser";
 import { supabase } from "@/lib/supabaseClient";
+import { PayrollShell } from '@/components/Payroll/PayrollShell';
 
 export default function EmpHistoryPage() {
   const { hasPermission, loading: userLoading } = useUser();
@@ -33,13 +34,17 @@ export default function EmpHistoryPage() {
     load();
   }, []);
 
-  if (userLoading || loading) return <div className="container">Loading...</div>;
+  if (userLoading || loading) return (
+    <PayrollShell currentLabel="EMP History">Loading...</PayrollShell>
+  );
   if (!hasPermission('manage_employees')) {
-    return <div className="container"><div className="error">No permission</div></div>;
+    return (
+    <PayrollShell currentLabel="EMP History"><div className="error">No permission</div></PayrollShell>
+  );
   }
 
   return (
-    <div className="container">
+    <PayrollShell currentLabel="EMP History">
       <div className="page-header">
         <div className="page-header-content">
           <h1>EMP Module History</h1>
@@ -99,6 +104,6 @@ export default function EmpHistoryPage() {
           </table>
         </div>
       )}
-    </div>
+    </PayrollShell>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/useUser';
 import { supabase } from '@/lib/supabaseClient';
+import { PayrollShell } from '@/components/Payroll/PayrollShell';
 
 type EmployeeListRow = {
   employee_id: string;
@@ -87,16 +88,17 @@ export default function PayConfigurationPage() {
 
   if (!hasPermission('manage_employees')) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <PayrollShell currentLabel="Pay Configuration">
         <div className="bg-red-50 border border-red-200 text-red-700 rounded p-4">
           You do not have permission to manage employee pay configurations.
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5">
+    <PayrollShell currentLabel="Pay Configuration">
+      <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Pay Configuration</h1>
         <p className="text-sm text-gray-600 mt-1">
@@ -186,5 +188,6 @@ export default function PayConfigurationPage() {
         </table>
       </div>
     </div>
+    </PayrollShell>
   );
 }

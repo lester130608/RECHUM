@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { supabase } from '@/lib/supabaseClient';
 import { getValidTaxTypesForRole, ROLE_TAX_RULES } from '@/lib/pay-config';
+import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import {
   getRateFieldsForRole,
   OUTREACH_BASE_REFERENCE_OPTIONS,
@@ -400,26 +401,26 @@ export default function PayConfigurationDetailPage() {
   }
 
   if (userLoading) {
-    return <div className="p-6 max-w-7xl mx-auto text-gray-500">Loading permissions...</div>;
+    return <PayrollShell currentLabel="Pay Configuration">Loading permissions...</PayrollShell>;
   }
 
   if (!hasPermission('manage_employees')) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <PayrollShell currentLabel="Pay Configuration">
         <div className="bg-red-50 border border-red-200 text-red-700 rounded p-4">
           You do not have permission to manage employee pay configurations.
         </div>
-      </div>
+      </PayrollShell>
     );
   }
 
   if (loading) {
-    return <div className="p-6 max-w-7xl mx-auto text-gray-500">Loading pay configuration...</div>;
+    return <PayrollShell currentLabel="Pay Configuration">Loading pay configuration...</PayrollShell>;
   }
 
   if (!detail) {
     return (
-      <div className="p-6 max-w-7xl mx-auto space-y-4">
+      <PayrollShell currentLabel="Pay Configuration">
         <MessageBox message={message} />
         {error && <div className="error">{error}</div>}
         <Link href="/admin/pay-configuration">
@@ -427,12 +428,13 @@ export default function PayConfigurationDetailPage() {
             Back to list
           </span>
         </Link>
-      </div>
+      </PayrollShell>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <PayrollShell currentLabel="Pay Configuration">
+      <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{employeeName}</h1>
@@ -640,6 +642,7 @@ export default function PayConfigurationDetailPage() {
           </div>
         )}
       </section>
-    </div>
+      </div>
+    </PayrollShell>
   );
 }
