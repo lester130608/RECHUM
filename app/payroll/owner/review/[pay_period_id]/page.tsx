@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
+import { PayrollShell } from "@/components/Payroll/PayrollShell";
 import { supabase } from "@/lib/supabaseClient";
 
 // ---------------------------------------------------------------------------
@@ -169,12 +170,21 @@ export default function ReviewPeriodPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (userLoading || loading) return <div className="container">Loading...</div>;
+  // Sin PayrollShell esta pantalla no tenia menu lateral ni salida: se
+  // entraba y no habia forma de volver mas que con el boton del navegador.
+  if (userLoading || loading) {
+    return (
+      <PayrollShell currentLabel="Reporte del periodo">
+        <div className="container">Loading...</div>
+      </PayrollShell>
+    );
+  }
+
   if (!hasPermission("manage_employees")) {
     return (
-      <div className="container">
+      <PayrollShell currentLabel="Reporte del periodo">
         <div className="error">No permission</div>
-      </div>
+      </PayrollShell>
     );
   }
 
@@ -184,7 +194,7 @@ export default function ReviewPeriodPage() {
   const c1099Total = c1099Lines.reduce((sum, line) => sum + line.amount, 0);
 
   return (
-    <div className="container">
+    <PayrollShell currentLabel="Reporte del periodo">
       <div className="page-header">
         <div className="page-header-content">
           <h1>Consolidated Payroll</h1>
@@ -343,6 +353,6 @@ export default function ReviewPeriodPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PayrollShell>
   );
 }

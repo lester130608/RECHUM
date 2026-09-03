@@ -39,6 +39,8 @@ interface EmployeeFormState {
   area: PayrollArea;
   original_area?: PayrollArea;
   role: string;
+  /** W2 o 1099. Antes no se preguntaba y todo se creaba como W2. */
+  tax_type: string;
   rate: string;
 }
 
@@ -83,6 +85,7 @@ function makeEmptyForm(area: PayrollArea): EmployeeFormState {
     last_name: '',
     area,
     role: DEFAULT_ROLE_OPTIONS[area][0],
+    tax_type: 'W2',
     rate: '',
   };
 }
@@ -174,6 +177,10 @@ export default function PayrollEmployeesPage() {
       area: employee.area,
       original_area: employee.area,
       role: employee.role,
+      // El listado todavia no devuelve el tax_type, asi que al editar se parte
+      // de W2. Cambiarlo aqui lo guarda bien; queda pendiente que el GET de
+      // /api/payroll/employees lo incluya para no perder el valor real.
+      tax_type: 'W2',
       rate: typeof employee.rate === 'number' ? String(employee.rate) : '',
     });
     setFormError('');
@@ -203,6 +210,7 @@ export default function PayrollEmployeesPage() {
         last_name: form.last_name,
         area: form.area,
         role: form.role,
+        tax_type: form.tax_type,
         rate,
       };
 
@@ -360,6 +368,19 @@ export default function PayrollEmployeesPage() {
                       ))}
                     </select>
                   </div>
+                  <div className="form-row">
+                    <label htmlFor="tax_type">Tax type</label>
+                    <select
+                      id="tax_type"
+                      value={form.tax_type}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, tax_type: event.target.value }))
+                      }
+                    >
+                      <option value="W2">W2</option>
+                      <option value="1099">1099</option>
+                    </select>
+                  </div>
                   {ctx?.is_owner && (
                     <div className="form-row">
                       <label htmlFor="rate">Rate</label>
@@ -377,6 +398,7 @@ export default function PayrollEmployeesPage() {
 
                 <div className="info" style={{ marginTop: 12 }}>
                   Pay rate is set by the owner. Employee appears in capture but isn't paid until a rate is assigned.
+                  The tax type matters for the ADP report: W2 and 1099 are listed separately.
                 </div>
 
                 {formError && <div className="error" style={{ marginTop: 12 }}>{formError}</div>}

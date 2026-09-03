@@ -349,7 +349,21 @@ export default function CmhcCalculationPage() {
         </div>
       </div>
 
-      {preview && (
+      {preview && (() => {
+        // Solo se muestran los servicios con cantidad en alguna fila. Con los
+        // ocho siempre visibles, cada persona ocupaba dieciseis datos de los
+        // que casi todos eran cero, y lo que importa se perdia entre ellos.
+        const serviciosConDatos = CMHC_SERVICES.filter((serviceName) =>
+          preview.calculation.rows.some((row) => {
+            const service = serviceForRow(row, serviceName);
+            return service && service.quantity > 0;
+          })
+        );
+        const serviciosVisibles =
+          serviciosConDatos.length > 0 ? serviciosConDatos : CMHC_SERVICES;
+        const ocultos = CMHC_SERVICES.length - serviciosVisibles.length;
+
+        return (
         <>
           <div
             style={{
@@ -382,8 +396,8 @@ export default function CmhcCalculationPage() {
                   <tr>
                     <th style={{ minWidth: 180 }}>Worker</th>
                     <th>Role</th>
-                    {CMHC_SERVICES.map((serviceName) => (
-                      <th key={serviceName} style={{ minWidth: 150 }}>{serviceName}</th>
+                    {serviciosVisibles.map((serviceName) => (
+                      <th key={serviceName} style={{ minWidth: 110 }}>{serviceName}</th>
                     ))}
                     <th>Total $</th>
                     <th>Status</th>
@@ -398,18 +412,21 @@ export default function CmhcCalculationPage() {
                       <td>
                         <span className="badge accent">{row.role}</span>
                       </td>
-                      {CMHC_SERVICES.map((serviceName) => {
+                      {serviciosVisibles.map((serviceName) => {
                         const service = serviceForRow(row, serviceName);
+                        // Una sola linea, y un guion discreto cuando no hay
+                        // cantidad: un 0.00 x 45.10 = 0.00 solo hace ruido.
+                        if (!service || service.quantity <= 0) {
+                          return (
+                            <td key={serviceName} style={{ color: '#d1d5db' }}>—</td>
+                          );
+                        }
                         return (
                           <td key={serviceName}>
-                            {service ? (
-                              <div style={{ display: 'grid', gap: 3 }}>
-                                <span>{numberValue(service.quantity)} × {money(service.rate)}</span>
-                                <strong>{money(service.amount)}</strong>
-                              </div>
-                            ) : (
-                              '-'
-                            )}
+                            <strong>{money(service.amount)}</strong>
+                            <div style={{ color: '#6b7280', fontSize: 12 }}>
+                              {numberValue(service.quantity)} × {money(service.rate)}
+                            </div>
                           </td>
                         );
                       })}
@@ -431,10 +448,16 @@ export default function CmhcCalculationPage() {
           </div>
 
           <div className="info" style={{ marginTop: 14 }}>
+            {ocultos > 0 && (
+              <strong>
+                {ocultos} servicio(s) sin cantidad en este periodo no se muestran.{' '}
+              </strong>
+            )}
             IT uses clinician_service_rates. The other services use active CMHC pay_rates mapped by concept.
           </div>
         </>
-      )}
+        );
+      })()}
     </PayrollShell>
   );
 }

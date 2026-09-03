@@ -28,6 +28,7 @@ type PayrollEmployeePayload = {
   area?: string;
   original_area?: string;
   role?: string;
+  tax_type?: string;
   rate?: number | null;
 };
 
@@ -61,6 +62,15 @@ function canManageArea(roleCodes: string[], area: PayrollEmployeeArea) {
   }
 
   return getSupervisedAreas(roleCodes).includes(area);
+}
+
+/**
+ * W2 o 1099. Antes se creaba todo como W2 sin preguntar, y hay
+ * contratistas 1099 (Gabriela Rivas, Oscar Acevedo). El tipo importa
+ * para el reporte de ADP, que los separa.
+ */
+function normalizeTaxType(value?: string | null): 'W2' | '1099' {
+  return String(value ?? '').trim() === '1099' ? '1099' : 'W2';
 }
 
 function validateRoleForArea(area: PayrollEmployeeArea, role: string) {
@@ -184,6 +194,7 @@ export async function POST(req: NextRequest) {
     }
 
     const rate = owner && typeof body.rate === 'number' ? body.rate : null;
+    const taxType = normalizeTaxType(body.tax_type);
 
     const { data: employee, error: employeeError } = await supabase
       .from('employees')
@@ -192,7 +203,7 @@ export async function POST(req: NextRequest) {
         last_name: lastName,
         email: makePendingEmail(firstName, lastName),
         role: 'employee',
-        employee_type: 'W2',
+        employee_type: taxType,
         ready_for_payroll: false,
         status: 'active',
         rate,
@@ -211,7 +222,7 @@ export async function POST(req: NextRequest) {
         employee_id: employee.id,
         department: area,
         role,
-        tax_type: 'W2',
+        tax_type: taxType,
         // En mayúsculas: assignments_adp_pay_mode_check solo admite
         // 'HOURLY' o 'FLAT'. Con 'hourly' la inserción fallaba siempre,
         // incluso para el owner, y el alta de empleados no funcionaba

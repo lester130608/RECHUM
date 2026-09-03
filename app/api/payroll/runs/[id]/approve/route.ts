@@ -66,6 +66,24 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to verify pay run totals' }, { status: 500 });
     }
 
+    // Un area SIN importes calculados no se puede aprobar.
+    //
+    // Aprobar solo cambia el estado del run: no genera importes. Sin esta
+    // comprobacion se podia aprobar un area que valia 0, y ademas quedaba
+    // atrapada, porque una vez aprobada las rutas de calculo se niegan a
+    // recalcularla. Paso de verdad el 2026-09-01 con BA, y arrastro a
+    // Edwina, cuyo 1.5% se calcula sobre los importes de esa area.
+    if (!allItems || allItems.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            `El area ${payRun.area} no tiene importes calculados. ` +
+            `Calcúlala y guárdala antes de aprobarla: aprobar no calcula.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const totals = {
       total_workers: allItems?.length || 0,
       total_hours: (allItems || []).reduce((sum, item) => sum + (item.calc_total_hours || 0), 0),
