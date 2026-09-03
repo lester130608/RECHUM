@@ -99,6 +99,7 @@ export async function GET() {
         role,
         active,
         base_rate,
+        tax_type,
         employees (
           id,
           first_name,
@@ -130,6 +131,7 @@ export async function GET() {
           email: employee.email,
           area: assignment.department,
           role: normalizeRoleValue(assignment.role),
+          tax_type: assignment.tax_type ?? 'W2',
           active: assignment.active !== false,
           status: assignment.active === false ? 'paused' : 'active',
           ready_for_payroll: Boolean(employee.ready_for_payroll),
@@ -315,6 +317,18 @@ export async function PATCH(req: NextRequest) {
         department: area,
         role,
       };
+
+      // El tipo fiscal se guarda por ASIGNACION, no por persona: la misma
+      // trabajadora puede ser 1099 en un area y W2 en otra. Edwina es
+      // BCBA/1099 en BA y OUTREACH/W2 en EMP.
+      //
+      // Solo se toca si viene en la peticion, para que una edicion que no
+      // menciona el tipo no lo pise silenciosamente con W2.
+      if (payload?.tax_type !== undefined) {
+        assignmentUpdate.tax_type = normalizeTaxType(payload.tax_type);
+        employeeUpdate.employee_type = normalizeTaxType(payload.tax_type);
+      }
+
       if (owner) {
         const rate = typeof payload?.rate === 'number' ? payload.rate : null;
         employeeUpdate.rate = rate;

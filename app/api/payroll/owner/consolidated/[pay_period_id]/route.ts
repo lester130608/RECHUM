@@ -6,7 +6,7 @@ import {
   calculateOutreachAmount,
   getAreaRuns,
   getPayRoleConfigs,
-  getRolesByEmployee,
+  getAreaAssignments,
   pickConfigForRole,
   type ConsolidatedLine,
   type ModuleName,
@@ -96,10 +96,13 @@ export async function GET(
     // El rol que alguien desempeña depende del ÁREA, no de la persona: Edwina
     // es BCBA en BA y OUTREACH en EMP. `assignments` es quien lo sabe, y con
     // ese rol se elige la config correcta y por tanto el tax_type correcto.
-    const rolesByModule = new Map<ModuleName, Map<string, string>>();
+    const asignacionesPorArea = new Map<
+      ModuleName,
+      Awaited<ReturnType<typeof getAreaAssignments>>
+    >();
     for (const module of MODULES) {
       if (itemsByModule.has(module)) {
-        rolesByModule.set(module, await getRolesByEmployee(supabase, module));
+        asignacionesPorArea.set(module, await getAreaAssignments(supabase, module));
       }
     }
 
@@ -108,15 +111,21 @@ export async function GET(
         const employee = Array.isArray(item.employees) ? item.employees[0] : item.employees;
         const workerId = item.worker_id as string;
 
-        const assignedRole = rolesByModule.get(module)?.get(workerId) ?? null;
+        const asignacion = asignacionesPorArea.get(module)?.get(workerId) ?? null;
+        const assignedRole = asignacion?.role ?? null;
         const config = pickConfigForRole(configs.get(workerId), assignedRole);
         const employeeName = getEmployeeName(employee);
+
+        // El tipo fiscal sale de assignments, que es lo que edita la pantalla
+        // de empleados. pay_role_configs solo se usa como respaldo: si el
+        // reporte leyera de ahi, editar en una pantalla no se veria en la otra.
+        const taxType = asignacion?.taxType ?? config?.tax_type ?? 'W2';
 
         if (!config && (configs.get(workerId)?.length ?? 0) > 1) {
           warnings.push(
             `${employeeName} tiene varias configuraciones activas y ninguna coincide ` +
               `con su rol en ${module} (${assignedRole ?? 'sin rol asignado'}). ` +
-              `Se muestra W2 por defecto: verificar antes de exportar a ADP.`
+              `Se usa el tipo fiscal de assignments: ${taxType}.`
           );
         }
 
@@ -124,8 +133,8 @@ export async function GET(
           employee_id: workerId,
           employee_name: employeeName,
           module,
-          role: config?.role || assignedRole || DEFAULT_ROLE_BY_MODULE[module],
-          tax_type: config?.tax_type || 'W2',
+          role: assignedRole || config?.role || DEFAULT_ROLE_BY_MODULE[module],
+          tax_type: taxType,
           amount: Number(item.calc_total_amount) || 0,
         });
       }

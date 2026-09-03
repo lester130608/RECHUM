@@ -262,16 +262,29 @@ export function pickConfigForRole(
   return configs.length === 1 ? configs[0] : null;
 }
 
+export type AreaAssignment = {
+  role: string;
+  taxType: 'W2' | '1099' | null;
+};
+
 /**
- * Rol de cada empleado dentro de un área, según `assignments`.
+ * Rol y tipo fiscal de cada empleado dentro de un área, según `assignments`.
+ *
+ * El tipo fiscal se guarda POR ASIGNACIÓN, no por persona: la misma
+ * trabajadora puede ser 1099 en un área y W2 en otra. Edwina Fernandez es
+ * BCBA/1099 en BA y OUTREACH/W2 en EMP.
+ *
+ * `assignments` es la fuente buena porque es la que edita la pantalla de
+ * empleados. pay_role_configs también guarda un tax_type, y si el reporte
+ * leyera de ahí, editar en una pantalla no se reflejaría en la otra.
  */
-export async function getRolesByEmployee(
+export async function getAreaAssignments(
   supabase: SupabaseClient,
   department: string
-): Promise<Map<string, string>> {
+): Promise<Map<string, AreaAssignment>> {
   const { data, error } = await supabase
     .from('assignments')
-    .select('employee_id, role')
+    .select('employee_id, role, tax_type')
     .eq('department', department)
     .eq('active', true);
 
@@ -284,7 +297,13 @@ export async function getRolesByEmployee(
   return new Map(
     (data ?? [])
       .filter((row: any) => row.employee_id)
-      .map((row: any) => [row.employee_id as string, normalizeRole(row.role)])
+      .map((row: any) => [
+        row.employee_id as string,
+        {
+          role: normalizeRole(row.role),
+          taxType: row.tax_type === '1099' ? '1099' : row.tax_type === 'W2' ? 'W2' : null,
+        } as AreaAssignment,
+      ])
   );
 }
 

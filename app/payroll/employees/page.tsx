@@ -12,6 +12,7 @@ type PayrollArea = 'BA' | 'CMHC' | 'TCM' | 'PSYQ' | 'EMP';
 type EmployeeStatusFilter = 'all' | 'active' | 'paused';
 
 interface PayrollEmployee {
+  tax_type?: string;
   employee_id: string;
   first_name: string;
   last_name: string;
@@ -177,10 +178,7 @@ export default function PayrollEmployeesPage() {
       area: employee.area,
       original_area: employee.area,
       role: employee.role,
-      // El listado todavia no devuelve el tax_type, asi que al editar se parte
-      // de W2. Cambiarlo aqui lo guarda bien; queda pendiente que el GET de
-      // /api/payroll/employees lo incluya para no perder el valor real.
-      tax_type: 'W2',
+      tax_type: employee.tax_type ?? 'W2',
       rate: typeof employee.rate === 'number' ? String(employee.rate) : '',
     });
     setFormError('');
@@ -470,6 +468,7 @@ export default function PayrollEmployeesPage() {
                     <th>Name</th>
                     <th>Area</th>
                     <th>Role</th>
+                    <th>Tax</th>
                     <th>Status</th>
                     {ctx?.is_owner && <th>Rate</th>}
                     <th>Actions</th>
@@ -489,6 +488,14 @@ export default function PayrollEmployeesPage() {
                       <td>{employee.area}</td>
                       <td>
                         <span className="badge accent">{employee.role}</span>
+                      </td>
+                      <td>
+                        {/* Visible en el listado para poder repasar de un
+                            vistazo quien va como W2 y quien como 1099: el
+                            reporte de ADP los separa por este campo. */}
+                        <span className={employee.tax_type === '1099' ? 'badge warning' : 'badge'}>
+                          {employee.tax_type ?? 'W2'}
+                        </span>
                       </td>
                       <td>
                         <span className={employee.active ? 'badge success' : 'badge'}>
