@@ -71,8 +71,10 @@ export async function GET(
         .from('pay_run_items')
         .select(
           `
+          id,
           worker_id,
           calc_total_amount,
+          calc_total_hours,
           employees!inner (id, first_name, last_name, full_name)
         `
         )
@@ -88,6 +90,34 @@ export async function GET(
       itemsByModule.set(module, items ?? []);
       for (const item of items ?? []) {
         if (item.worker_id) allEmployeeIds.add(item.worker_id as string);
+      }
+    }
+
+    // Las horas vienen del propio item. Las unidades (CMHC, dias de PSYQ)
+    // solo existen en el desglose de pay_lines, asi que se suman aparte.
+    const unitsByItem = new Map<string, number>();
+    const allItemIds = Array.from(itemsByModule.values())
+      .flat()
+      .map((item: any) => item.id)
+      .filter(Boolean);
+
+    if (allItemIds.length > 0) {
+      const { data: payLines, error: payLinesError } = await supabase
+        .from('pay_lines')
+        .select('pay_run_item_id, units')
+        .in('pay_run_item_id', allItemIds);
+
+      if (payLinesError) {
+        return jsonError(
+          `No se pudo leer el desglose de lineas de pago: ${payLinesError.message}`,
+          500
+        );
+      }
+
+      for (const line of payLines ?? []) {
+        if (line.units == null) continue;
+        const current = unitsByItem.get(line.pay_run_item_id) ?? 0;
+        unitsByItem.set(line.pay_run_item_id, current + Number(line.units));
       }
     }
 
@@ -136,6 +166,8 @@ export async function GET(
           role: assignedRole || config?.role || DEFAULT_ROLE_BY_MODULE[module],
           tax_type: taxType,
           amount: Number(item.calc_total_amount) || 0,
+          hours: item.calc_total_hours == null ? null : Number(item.calc_total_hours),
+          units: unitsByItem.get(item.id as string) ?? null,
         });
       }
     }
@@ -228,6 +260,10 @@ export async function GET(
           role: 'OUTREACH',
           tax_type: (config.tax_type as 'W2' | '1099') || 'W2',
           amount,
+          // Un porcentaje sobre el bruto de otra area no tiene horas ni
+          // unidades. Un 0 aqui se leeria como "trabajo cero horas".
+          hours: null,
+          units: null,
           is_outreach_calc: true,
           notes: `${percentRate.rate_value}% x ${percentRate.base_reference}`,
         });

@@ -25,6 +25,8 @@ type ConsolidatedLine = {
   role: string;
   tax_type: "W2" | "1099";
   amount: number;
+  hours?: number | null;
+  units?: number | null;
   is_outreach_calc?: boolean;
   notes?: string;
 };
@@ -34,8 +36,27 @@ type EmployeeTotal = {
   employee_name: string;
   tax_type: "W2" | "1099";
   total: number;
+  hours: number | null;
   modules: string[];
 };
+
+/**
+ * Lo que generó el importe. Las horas mandan; si la linea se captura en
+ * unidades (CMHC, dias de PSYQ) se muestran esas. El porcentaje de outreach
+ * no tiene ni lo uno ni lo otro: raya, nunca un cero, que se leeria como
+ * "trabajo cero horas".
+ */
+function hoursLabel(line: ConsolidatedLine) {
+  if (line.hours != null) return line.hours.toFixed(2);
+  if (line.units != null) return `${line.units} uds`;
+  return "—";
+}
+
+function hoursCsv(line: ConsolidatedLine) {
+  if (line.hours != null) return line.hours.toFixed(2);
+  if (line.units != null) return `${line.units} uds`;
+  return "";
+}
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", {
@@ -99,6 +120,7 @@ export default function ReviewPeriodPage() {
       const current = byEmployee.get(line.employee_id);
       if (current) {
         current.total += line.amount;
+        if (line.hours != null) current.hours = (current.hours ?? 0) + line.hours;
         if (!current.modules.includes(line.module)) current.modules.push(line.module);
       } else {
         byEmployee.set(line.employee_id, {
@@ -106,6 +128,7 @@ export default function ReviewPeriodPage() {
           employee_name: line.employee_name,
           tax_type: line.tax_type,
           total: line.amount,
+          hours: line.hours ?? null,
           modules: [line.module],
         });
       }
@@ -121,13 +144,14 @@ export default function ReviewPeriodPage() {
     const rows: string[] = [];
 
     rows.push("TOTAL POR EMPLEADO (para ADP)");
-    rows.push(["Empleado", "Tipo", "Areas", "Total"].map(csvCell).join(","));
+    rows.push(["Empleado", "Tipo", "Areas", "Horas", "Total"].map(csvCell).join(","));
     for (const employee of employeeTotals) {
       rows.push(
         [
           employee.employee_name,
           employee.tax_type,
           employee.modules.join(" + "),
+          employee.hours == null ? "" : employee.hours.toFixed(2),
           employee.total.toFixed(2),
         ]
           .map(csvCell)
@@ -137,7 +161,11 @@ export default function ReviewPeriodPage() {
 
     rows.push("");
     rows.push("DETALLE POR AREA");
-    rows.push(["Empleado", "Area", "Rol", "Tipo", "Importe", "Nota"].map(csvCell).join(","));
+    rows.push(
+      ["Empleado", "Area", "Rol", "Tipo", "Horas/Unidades", "Importe", "Nota"]
+        .map(csvCell)
+        .join(",")
+    );
     for (const line of lines) {
       rows.push(
         [
@@ -145,6 +173,7 @@ export default function ReviewPeriodPage() {
           line.module,
           line.role,
           line.tax_type,
+          hoursCsv(line),
           line.amount.toFixed(2),
           line.notes ?? "",
         ]
@@ -154,7 +183,7 @@ export default function ReviewPeriodPage() {
     }
 
     rows.push("");
-    rows.push(["TOTAL", "", "", "", total.toFixed(2), ""].map(csvCell).join(","));
+    rows.push(["TOTAL", "", "", "", "", total.toFixed(2), ""].map(csvCell).join(","));
 
     // BOM para que Excel abra los acentos correctamente.
     const blob = new Blob(["﻿" + rows.join("\n")], {
@@ -241,6 +270,7 @@ export default function ReviewPeriodPage() {
                   <th>Empleado</th>
                   <th>Tipo</th>
                   <th>Áreas</th>
+                  <th style={{ textAlign: "right" }}>Horas</th>
                   <th style={{ textAlign: "right" }}>Total a pagar</th>
                 </tr>
               </thead>
@@ -256,6 +286,9 @@ export default function ReviewPeriodPage() {
                       </span>
                     </td>
                     <td className="text-sm text-tertiary">{employee.modules.join(" + ")}</td>
+                    <td style={{ textAlign: "right" }} className="text-sm">
+                      {employee.hours == null ? "—" : employee.hours.toFixed(2)}
+                    </td>
                     <td style={{ textAlign: "right" }}>
                       <strong>{money(employee.total)}</strong>
                     </td>
@@ -282,6 +315,7 @@ export default function ReviewPeriodPage() {
                   <th>Empleado</th>
                   <th>Área</th>
                   <th>Rol</th>
+                  <th style={{ textAlign: "right" }}>Horas / Uds</th>
                   <th style={{ textAlign: "right" }}>Importe</th>
                   <th>Nota</th>
                 </tr>
@@ -294,6 +328,9 @@ export default function ReviewPeriodPage() {
                     <td>
                       {line.role}
                       {line.is_outreach_calc && <span className="badge accent ml-2">auto</span>}
+                    </td>
+                    <td style={{ textAlign: "right" }} className="text-sm">
+                      {hoursLabel(line)}
                     </td>
                     <td style={{ textAlign: "right" }}>{money(line.amount)}</td>
                     <td className="text-sm text-tertiary">{line.notes || "—"}</td>
@@ -317,6 +354,7 @@ export default function ReviewPeriodPage() {
                   <th>Empleado</th>
                   <th>Área</th>
                   <th>Rol</th>
+                  <th style={{ textAlign: "right" }}>Horas / Uds</th>
                   <th style={{ textAlign: "right" }}>Importe</th>
                   <th>Nota</th>
                 </tr>
@@ -327,6 +365,9 @@ export default function ReviewPeriodPage() {
                     <td>{line.employee_name}</td>
                     <td>{line.module}</td>
                     <td>{line.role}</td>
+                    <td style={{ textAlign: "right" }} className="text-sm">
+                      {hoursLabel(line)}
+                    </td>
                     <td style={{ textAlign: "right" }}>{money(line.amount)}</td>
                     <td className="text-sm text-tertiary">{line.notes || "—"}</td>
                   </tr>

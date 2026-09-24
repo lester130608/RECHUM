@@ -46,6 +46,8 @@ export type ConsolidatedLine = {
   role: string;
   tax_type: 'W2' | '1099';
   amount: number;
+  hours?: number | null;
+  units?: number | null;
   is_outreach_calc?: boolean;
   notes?: string;
 };
