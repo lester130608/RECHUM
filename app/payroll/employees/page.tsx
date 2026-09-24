@@ -4,6 +4,7 @@
 // Quick payroll employee dashboard. Separate from HR/onboarding.
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
@@ -481,9 +482,20 @@ export default function PayrollEmployeesPage() {
                       style={employee.active ? undefined : { opacity: 0.55 }}
                     >
                       <td>
-                        <span style={{ fontWeight: 600 }}>
-                          {employee.first_name} {employee.last_name}
-                        </span>
+                        {/* La ficha es solo del owner: concentra tarifas e
+                            importes, que un supervisor no ve en ningun sitio. */}
+                        {ctx?.is_owner ? (
+                          <Link
+                            href={`/payroll/employees/${employee.employee_id}`}
+                            style={{ fontWeight: 600 }}
+                          >
+                            {employee.first_name} {employee.last_name}
+                          </Link>
+                        ) : (
+                          <span style={{ fontWeight: 600 }}>
+                            {employee.first_name} {employee.last_name}
+                          </span>
+                        )}
                       </td>
                       <td>{employee.area}</td>
                       <td>
