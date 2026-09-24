@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { PayrollShell } from '@/components/Payroll/PayrollShell';
+import { AssistantBox } from '@/components/Payroll/AssistantBox';
+
+/** El asistente esta abierto a supervisores. A ellos les responde solo de su
+ *  area y sin importes; eso lo decide el backend, no esta pantalla. */
+const ASISTENTE_SOLO_OWNER = false;
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
 
@@ -384,6 +389,16 @@ export default function PayrollDashboardPage() {
           </div>
         </section>
       </div>
+
+      {/* Preguntar a la nomina.
+          El backend ya distingue roles: a un supervisor le responde solo de su
+          area y sin importes. Mientras se prueba, la caja se muestra solo al
+          owner. Para abrirla a los supervisores, poner esta constante en false. */}
+      {(!ASISTENTE_SOLO_OWNER || ctx?.is_owner) && (
+        <div style={{ marginTop: 20 }}>
+          <AssistantBox isOwner={Boolean(ctx?.is_owner)} />
+        </div>
+      )}
     </PayrollShell>
   );
 }
