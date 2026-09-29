@@ -4,19 +4,13 @@ import { requireAnyRole } from '@/lib/auth/roleAccess';
 import { chooseCurrentPeriodId } from '@/lib/payroll/periods';
 import {
   CMHC_SERVICE_CONCEPTS,
-  CMHC_SERVICES,
   calculateCmhcPayroll,
-  type CmhcConcept,
   type CmhcServiceName,
   type CmhcWorkerInput,
 } from '@/lib/payroll/calcCMHC';
+import { loadCmhcServiceRates } from '@/lib/payroll/cmhcServiceRates';
 
 const CMHC_AREA = 'CMHC';
-const PAY_RATE_CONCEPTS = Object.values(CMHC_SERVICE_CONCEPTS);
-
-function normalizeServiceName(value?: string | null) {
-  return (value ?? '').trim().toUpperCase();
-}
 
 function lineCodeForService(serviceName: CmhcServiceName) {
   return `CMHC_${serviceName.replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')}`;
@@ -90,50 +84,10 @@ async function loadCmhcCalculationContext(supabase: any, periodId: string) {
     .map((assignment: any) => assignment.employee_id)
     .filter(Boolean);
 
-  let payRates: any[] = [];
-  if (employeeIds.length > 0) {
-    const { data: rates, error: ratesError } = await supabase
-      .from('pay_rates')
-      .select('employee_id, department, concept, rate, valid_to')
-      .in('employee_id', employeeIds)
-      .eq('department', CMHC_AREA)
-      .in('concept', PAY_RATE_CONCEPTS)
-      .is('valid_to', null);
+  // Tarifas por servicio: pay_role_rates (configurado en la app) con
+  // fallback a pay_rates y a la IT global. Ver lib/payroll/cmhcServiceRates.
+  const ratesByEmployee = await loadCmhcServiceRates(supabase, employeeIds);
 
-    if (ratesError) {
-      throw new Error('Failed to fetch active CMHC service rates');
-    }
-
-    payRates = rates ?? [];
-  }
-
-  const { data: fixedRates, error: fixedRatesError } = await supabase
-    .from('clinician_service_rates')
-    .select('service_name, rate')
-    .eq('service_name', 'IT')
-    .maybeSingle();
-
-  if (fixedRatesError) {
-    throw new Error('Failed to fetch fixed IT service rate');
-  }
-
-  const itRate =
-    normalizeServiceName(fixedRates?.service_name) === 'IT' && fixedRates?.rate !== null && fixedRates?.rate !== undefined
-      ? Number(fixedRates.rate)
-      : null;
-
-  const ratesByEmployee = new Map<string, Partial<Record<CmhcConcept, number>>>();
-  for (const rate of payRates) {
-    const employeeId = rate.employee_id as string;
-    const concept = rate.concept as CmhcConcept;
-    if (!PAY_RATE_CONCEPTS.includes(concept)) continue;
-
-    const current = ratesByEmployee.get(employeeId) ?? {};
-    current[concept] = Number(rate.rate);
-    ratesByEmployee.set(employeeId, current);
-  }
-
-  const conceptByService = CMHC_SERVICE_CONCEPTS as Record<string, CmhcConcept>;
   const payload = input.payload as Record<string, Partial<Record<CmhcServiceName, number>>>;
 
   const workers: CmhcWorkerInput[] = (assignments ?? [])
@@ -141,29 +95,14 @@ async function loadCmhcCalculationContext(supabase: any, periodId: string) {
       const employee = assignment.employees;
       if (!employee?.id) return null;
 
-      const employeeRates = ratesByEmployee.get(assignment.employee_id) ?? {};
-      const serviceRates = CMHC_SERVICES.reduce<Partial<Record<CmhcServiceName, number | null>>>(
-        (acc, serviceName) => {
-          if (serviceName === 'IT') {
-            acc[serviceName] = itRate;
-            return acc;
-          }
-
-          const concept = conceptByService[serviceName];
-          acc[serviceName] =
-            employeeRates[concept] === null || employeeRates[concept] === undefined
-              ? null
-              : Number(employeeRates[concept]);
-          return acc;
-        },
-        {}
-      );
+      const employeeRates = ratesByEmployee.get(assignment.employee_id) ?? { rates: {}, sources: {} };
 
       return {
         employeeId: assignment.employee_id,
         workerName: `${employee.first_name ?? ''} ${employee.last_name ?? ''}`.trim(),
         role: assignment.role ?? '',
-        serviceRates,
+        serviceRates: employeeRates.rates,
+        serviceRateSources: employeeRates.sources,
         input: payload[assignment.employee_id] ?? {},
       };
     })

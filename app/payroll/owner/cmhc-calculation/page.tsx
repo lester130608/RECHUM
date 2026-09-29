@@ -23,7 +23,7 @@ interface CmhcServiceCalculation {
   quantity: number;
   rate: number | null;
   amount: number | null;
-  rateSource: 'pay_rates' | 'clinician_service_rates';
+  rateSource: 'pay_role_rates' | 'pay_rates' | 'clinician_service_rates';
   error: 'missing_service_rate' | null;
 }
 
@@ -385,7 +385,7 @@ export default function CmhcCalculationPage() {
 
           {preview.calculation.hasErrors && (
             <div className="error" style={{ marginBottom: 16 }}>
-              Missing service rates found. Assign pay_rates for captured services before saving.
+              Missing service rates found. Set the therapist's service rates in Payroll Employees before saving.
             </div>
           )}
 
@@ -453,7 +453,7 @@ export default function CmhcCalculationPage() {
                 {ocultos} servicio(s) sin cantidad en este periodo no se muestran.{' '}
               </strong>
             )}
-            IT uses clinician_service_rates. The other services use active CMHC pay_rates mapped by concept.
+            Service rates come from the therapist's configuration in Payroll Employees (pay_role_rates). Older therapists without one fall back to CMHC pay_rates, and IT falls back to the global clinician_service_rates.
           </div>
         </>
         );

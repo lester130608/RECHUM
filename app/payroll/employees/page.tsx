@@ -24,6 +24,8 @@ interface PayrollEmployee {
   status: 'active' | 'paused';
   ready_for_payroll: boolean;
   rate?: number | null;
+  /** Solo owner y solo CMHC: tarifa por servicio, por rate_key. */
+  service_rates?: Record<string, number | null>;
 }
 
 interface EmployeesContext {
@@ -44,6 +46,40 @@ interface EmployeeFormState {
   /** W2 o 1099. Antes no se preguntaba y todo se creaba como W2. */
   tax_type: string;
   rate: string;
+  /** THERAPIST: una tarifa por servicio (rate_key → texto del input). */
+  service_rates: Record<string, string>;
+}
+
+// Un therapist no cobra por hora: cobra por cada servicio que hace. Estas
+// son las mismas claves que lib/pay-config-fields.ts y que lee el motor de
+// CMHC (lib/payroll/cmhcServiceRates.ts). Si se añade un servicio, va aquí
+// y allí.
+const THERAPIST_RATE_FIELDS: Array<{ key: string; label: string }> = [
+  { key: 'IT', label: 'Individual therapy (IT)' },
+  { key: 'INTAKE', label: 'Intake' },
+  { key: 'IN_DEPTH_INTAKE', label: 'In-depth intake' },
+  { key: 'BIO', label: 'Bio' },
+  { key: 'IN_DEPTH_BIO', label: 'In-depth bio' },
+  { key: 'IN_DEPTH_EXISTING', label: 'In-depth existing' },
+  { key: 'TP', label: 'Treatment plan (TP)' },
+  { key: 'TP_REVIEW', label: 'Treatment plan review' },
+];
+
+function emptyServiceRates(): Record<string, string> {
+  return Object.fromEntries(THERAPIST_RATE_FIELDS.map((field) => [field.key, '']));
+}
+
+function serviceRatesToForm(rates?: Record<string, number | null>): Record<string, string> {
+  const result = emptyServiceRates();
+  for (const field of THERAPIST_RATE_FIELDS) {
+    const value = rates?.[field.key];
+    result[field.key] = typeof value === 'number' ? String(value) : '';
+  }
+  return result;
+}
+
+function isTherapistForm(form: EmployeeFormState) {
+  return form.area === 'CMHC' && form.role === 'THERAPIST';
 }
 
 const AREA_OPTIONS: PayrollArea[] = ['BA', 'CMHC', 'TCM', 'PSYQ', 'EMP'];
@@ -89,6 +125,7 @@ function makeEmptyForm(area: PayrollArea): EmployeeFormState {
     role: DEFAULT_ROLE_OPTIONS[area][0],
     tax_type: 'W2',
     rate: '',
+    service_rates: emptyServiceRates(),
   };
 }
 
@@ -98,6 +135,17 @@ function formatRate(value?: number | null) {
     style: 'currency',
     currency: 'USD',
   }).format(value);
+}
+
+/** Resumen compacto para la tabla: "IT $30 · Intake $45 · 6/8 set". */
+function formatServiceRatesSummary(rates: Record<string, number | null>) {
+  const configured = THERAPIST_RATE_FIELDS.filter((field) => typeof rates[field.key] === 'number');
+  if (configured.length === 0) return 'No service rates';
+  const it = rates.IT;
+  const parts: string[] = [];
+  if (typeof it === 'number') parts.push(`IT ${formatRate(it)}`);
+  parts.push(`${configured.length}/${THERAPIST_RATE_FIELDS.length} services`);
+  return parts.join(' · ');
 }
 
 function toNumberOrNull(value: string) {
@@ -181,6 +229,7 @@ export default function PayrollEmployeesPage() {
       role: employee.role,
       tax_type: employee.tax_type ?? 'W2',
       rate: typeof employee.rate === 'number' ? String(employee.rate) : '',
+      service_rates: serviceRatesToForm(employee.service_rates),
     });
     setFormError('');
     setMessage('');
@@ -203,8 +252,9 @@ export default function PayrollEmployeesPage() {
     setMessage('');
 
     try {
-      const rate = toNumberOrNull(form.rate);
-      const body = {
+      const therapist = isTherapistForm(form);
+      const rate = therapist ? null : toNumberOrNull(form.rate);
+      const body: Record<string, unknown> = {
         first_name: form.first_name,
         last_name: form.last_name,
         area: form.area,
@@ -212,6 +262,18 @@ export default function PayrollEmployeesPage() {
         tax_type: form.tax_type,
         rate,
       };
+
+      if (therapist && ctx?.is_owner) {
+        const serviceRates: Record<string, number | null> = {};
+        for (const field of THERAPIST_RATE_FIELDS) {
+          const raw = form.service_rates[field.key] ?? '';
+          if (raw.trim() && toNumberOrNull(raw) === null) {
+            throw new Error(`${field.label}: enter a valid number or leave it empty`);
+          }
+          serviceRates[field.key] = toNumberOrNull(raw);
+        }
+        body.service_rates = serviceRates;
+      }
 
       const response = editing
         ? await fetchWithSession('/api/payroll/employees', {
@@ -380,7 +442,7 @@ export default function PayrollEmployeesPage() {
                       <option value="1099">1099</option>
                     </select>
                   </div>
-                  {ctx?.is_owner && (
+                  {ctx?.is_owner && !isTherapistForm(form) && (
                     <div className="form-row">
                       <label htmlFor="rate">Rate</label>
                       <input
@@ -395,8 +457,37 @@ export default function PayrollEmployeesPage() {
                   )}
                 </div>
 
+                {ctx?.is_owner && isTherapistForm(form) && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8 }}>Service rates</div>
+                    <div className="form-grid">
+                      {THERAPIST_RATE_FIELDS.map((field) => (
+                        <div className="form-row" key={field.key}>
+                          <label htmlFor={`service-rate-${field.key}`}>{field.label}</label>
+                          <input
+                            id={`service-rate-${field.key}`}
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            placeholder="—"
+                            value={form.service_rates[field.key] ?? ''}
+                            onChange={(event) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                service_rates: { ...prev.service_rates, [field.key]: event.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="info" style={{ marginTop: 12 }}>
-                  Pay rate is set by the owner. Employee appears in capture but isn't paid until a rate is assigned.
+                  {isTherapistForm(form)
+                    ? 'Therapists are paid per service, not per hour. A service left empty is not paid: the CMHC calculation flags it if any units are captured for it.'
+                    : "Pay rate is set by the owner. Employee appears in capture but isn't paid until a rate is assigned."}{' '}
                   The tax type matters for the ADP report: W2 and 1099 are listed separately.
                 </div>
 
@@ -514,7 +605,13 @@ export default function PayrollEmployeesPage() {
                           {employee.active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      {ctx?.is_owner && <td>{formatRate(employee.rate)}</td>}
+                      {ctx?.is_owner && (
+                        <td>
+                          {employee.area === 'CMHC' && employee.service_rates
+                            ? formatServiceRatesSummary(employee.service_rates)
+                            : formatRate(employee.rate)}
+                        </td>
+                      )}
                       <td>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {ctx?.is_owner && (

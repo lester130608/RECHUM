@@ -3,13 +3,11 @@ import {
   type BaWorkerInput,
 } from '@/lib/payroll/calcBA';
 import {
-  CMHC_SERVICE_CONCEPTS,
-  CMHC_SERVICES,
   calculateCmhcPayroll,
-  type CmhcConcept,
   type CmhcServiceName,
   type CmhcWorkerInput,
 } from '@/lib/payroll/calcCMHC';
+import { loadCmhcServiceRates } from '@/lib/payroll/cmhcServiceRates';
 import {
   calculateTcmPayroll,
   type TcmWorkerInput,
@@ -36,14 +34,8 @@ type PersistableLine = {
   metadata: Record<string, any>;
 };
 
-const CMHC_PAY_RATE_CONCEPTS = Object.values(CMHC_SERVICE_CONCEPTS);
-
 function lineCodeForCmhcService(serviceName: CmhcServiceName) {
   return `CMHC_${serviceName.replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')}`;
-}
-
-function normalizeServiceName(value?: string | null) {
-  return (value ?? '').trim().toUpperCase();
 }
 
 async function getAreaRun(supabase: any, area: CalculableArea, periodId: string) {
@@ -256,63 +248,20 @@ async function loadCmhc(supabase: any, periodId: string) {
   if (error) throw new Error('Failed to fetch active CMHC assignments');
 
   const employeeIds = (assignments ?? []).map((assignment: any) => assignment.employee_id).filter(Boolean);
-  const { data: payRates, error: ratesError } =
-    employeeIds.length > 0
-      ? await supabase
-          .from('pay_rates')
-          .select('employee_id, concept, rate, valid_to')
-          .in('employee_id', employeeIds)
-          .eq('department', 'CMHC')
-          .in('concept', CMHC_PAY_RATE_CONCEPTS)
-          .is('valid_to', null)
-      : { data: [], error: null };
-
-  if (ratesError) throw new Error('Failed to fetch active CMHC service rates');
-
-  const { data: fixedRate, error: fixedRateError } = await supabase
-    .from('clinician_service_rates')
-    .select('service_name, rate')
-    .eq('service_name', 'IT')
-    .maybeSingle();
-
-  if (fixedRateError) throw new Error('Failed to fetch fixed IT service rate');
-
-  const itRate =
-    normalizeServiceName(fixedRate?.service_name) === 'IT' && fixedRate?.rate != null
-      ? Number(fixedRate.rate)
-      : null;
-
-  const ratesByEmployee = new Map<string, Record<string, number>>();
-  for (const rate of payRates ?? []) {
-    const current = ratesByEmployee.get(rate.employee_id) ?? {};
-    current[rate.concept] = Number(rate.rate);
-    ratesByEmployee.set(rate.employee_id, current);
-  }
+  const ratesByEmployee = await loadCmhcServiceRates(supabase, employeeIds);
 
   const payload = input.payload as Record<string, Partial<Record<CmhcServiceName, number>>>;
-  const conceptByService = CMHC_SERVICE_CONCEPTS as Record<string, CmhcConcept>;
   const workers: CmhcWorkerInput[] = (assignments ?? [])
     .map((assignment: any) => {
       const employee = assignment.employees;
       if (!employee?.id) return null;
-      const employeeRates = ratesByEmployee.get(assignment.employee_id) ?? {};
-      const serviceRates = CMHC_SERVICES.reduce<Partial<Record<CmhcServiceName, number | null>>>(
-        (acc, serviceName) => {
-          if (serviceName === 'IT') {
-            acc[serviceName] = itRate;
-          } else {
-            const concept = conceptByService[serviceName];
-            acc[serviceName] = employeeRates[concept] == null ? null : Number(employeeRates[concept]);
-          }
-          return acc;
-        },
-        {}
-      );
+      const employeeRates = ratesByEmployee.get(assignment.employee_id) ?? { rates: {}, sources: {} };
       return {
         employeeId: assignment.employee_id,
         workerName: `${employee.first_name ?? ''} ${employee.last_name ?? ''}`.trim(),
         role: assignment.role ?? '',
-        serviceRates,
+        serviceRates: employeeRates.rates,
+        serviceRateSources: employeeRates.sources,
         input: payload[assignment.employee_id] ?? {},
       };
     })

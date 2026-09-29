@@ -26,11 +26,15 @@ export type CmhcConcept = (typeof CMHC_SERVICE_CONCEPTS)[keyof typeof CMHC_SERVI
 
 export type CmhcInputEntry = Partial<Record<CmhcServiceName, number>>;
 
+export type CmhcRateSource = 'pay_role_rates' | 'pay_rates' | 'clinician_service_rates';
+
 export type CmhcWorkerInput = {
   employeeId: string;
   workerName: string;
   role: string;
   serviceRates: Partial<Record<CmhcServiceName, number | null>>;
+  /** De dónde salió cada tarifa. Opcional: si falta se infiere como antes. */
+  serviceRateSources?: Partial<Record<CmhcServiceName, CmhcRateSource>>;
   input: CmhcInputEntry;
 };
 
@@ -39,7 +43,7 @@ export type CmhcServiceCalculation = {
   quantity: number;
   rate: number | null;
   amount: number | null;
-  rateSource: 'pay_rates' | 'clinician_service_rates';
+  rateSource: CmhcRateSource;
   error: 'missing_service_rate' | null;
 };
 
@@ -76,10 +80,12 @@ function normalizeRole(value: string) {
 function calculateService(
   serviceName: CmhcServiceName,
   quantityInput: unknown,
-  rate: number | null
+  rate: number | null,
+  sourceHint?: CmhcRateSource
 ): CmhcServiceCalculation {
   const quantity = toFiniteNumber(quantityInput);
-  const rateSource = serviceName === 'IT' ? 'clinician_service_rates' : 'pay_rates';
+  const rateSource: CmhcRateSource =
+    sourceHint ?? (serviceName === 'IT' ? 'clinician_service_rates' : 'pay_rates');
 
   if (quantity > 0 && rate === null) {
     return {
@@ -108,7 +114,12 @@ export function calculateCmhcPayroll(workers: CmhcWorkerInput[]): CmhcCalculatio
     const services = CMHC_SERVICES.map((serviceName) => {
       const rawRate = worker.serviceRates[serviceName];
       const normalizedRate = rawRate === null || rawRate === undefined ? null : toFiniteNumber(rawRate);
-      return calculateService(serviceName, worker.input[serviceName] ?? 0, normalizedRate);
+      return calculateService(
+        serviceName,
+        worker.input[serviceName] ?? 0,
+        normalizedRate,
+        worker.serviceRateSources?.[serviceName]
+      );
     });
     const errors = services
       .filter((service) => service.error === 'missing_service_rate')

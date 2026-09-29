@@ -9,6 +9,11 @@ import {
   isOwner,
   requireAnyRole,
 } from '@/lib/auth/roleAccess';
+import {
+  loadTherapistRatesByKey,
+  normalizeTherapistServiceRates,
+  saveTherapistServiceRates,
+} from '@/lib/payroll/cmhcServiceRates';
 
 type PayrollEmployeeArea = 'BA' | 'CMHC' | 'TCM' | 'PSYQ' | 'EMP';
 
@@ -30,6 +35,13 @@ type PayrollEmployeePayload = {
   role?: string;
   tax_type?: string;
   rate?: number | null;
+  /**
+   * Solo THERAPIST (CMHC). Tarifa por servicio, por rate_key:
+   * INTAKE, IN_DEPTH_INTAKE, IN_DEPTH_BIO, IN_DEPTH_EXISTING, TP, BIO, IT,
+   * TP_REVIEW. Se guarda en pay_role_rates, que es lo que lee el motor
+   * de CMHC. El campo `rate` único no sirve para un therapist.
+   */
+  service_rates?: Record<string, number | string | null>;
 };
 
 function normalizeRoleValue(value?: string | null) {
@@ -117,6 +129,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch payroll employees' }, { status: 500 });
     }
 
+    // Tarifas por servicio de los therapists: solo el owner las ve.
+    const therapistIds = owner
+      ? Array.from(
+          new Set(
+            (assignments ?? [])
+              .filter((assignment: any) => assignment.department === 'CMHC' && assignment.employees)
+              .map((assignment: any) => assignment.employee_id as string)
+          )
+        )
+      : [];
+    const therapistRates =
+      therapistIds.length > 0 ? await loadTherapistRatesByKey(supabase, therapistIds) : new Map();
+
     const employees = (assignments ?? [])
       .map((assignment: any) => {
         const employee = assignment.employees;
@@ -136,6 +161,10 @@ export async function GET() {
           status: assignment.active === false ? 'paused' : 'active',
           ready_for_payroll: Boolean(employee.ready_for_payroll),
           rate: owner ? assignment.base_rate ?? employee.rate ?? null : undefined,
+          service_rates:
+            owner && assignment.department === 'CMHC'
+              ? therapistRates.get(assignment.employee_id) ?? {}
+              : undefined,
         };
       })
       .filter(Boolean)
@@ -239,6 +268,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Employee created but assignment failed' }, { status: 500 });
     }
 
+    if (owner && role === 'THERAPIST' && body.service_rates !== undefined) {
+      const normalized = normalizeTherapistServiceRates(body.service_rates);
+      if (!normalized.ok) {
+        return NextResponse.json({ error: normalized.error }, { status: 400 });
+      }
+      const saved = await saveTherapistServiceRates(supabase, employee.id, taxType, normalized.value);
+      if (!saved.ok) {
+        console.error('POST /api/payroll/employees therapist rates error:', saved.error);
+        return NextResponse.json(
+          { error: 'Employee created but service rates could not be saved. Edit the employee to retry.' },
+          { status: 500 }
+        );
+      }
+    }
+
     return NextResponse.json({ message: 'Employee added', employee }, { status: 201 });
   } catch (error) {
     console.error('POST /api/payroll/employees error:', error);
@@ -335,6 +379,15 @@ export async function PATCH(req: NextRequest) {
         assignmentUpdate.base_rate = rate;
       }
 
+      let therapistRates: Record<string, number | null> | null = null;
+      if (owner && role === 'THERAPIST' && payload?.service_rates !== undefined) {
+        const normalized = normalizeTherapistServiceRates(payload.service_rates);
+        if (!normalized.ok) {
+          return NextResponse.json({ error: normalized.error }, { status: 400 });
+        }
+        therapistRates = normalized.value;
+      }
+
       const { error: employeeError } = await supabase
         .from('employees')
         .update(employeeUpdate)
@@ -354,6 +407,15 @@ export async function PATCH(req: NextRequest) {
       if (assignmentError) {
         console.error('PATCH /api/payroll/employees assignment edit error:', assignmentError);
         return NextResponse.json({ error: 'Failed to update assignment' }, { status: 500 });
+      }
+
+      if (therapistRates) {
+        const taxType = payload?.tax_type !== undefined ? normalizeTaxType(payload.tax_type) : null;
+        const saved = await saveTherapistServiceRates(supabase, employeeId, taxType, therapistRates);
+        if (!saved.ok) {
+          console.error('PATCH /api/payroll/employees therapist rates error:', saved.error);
+          return NextResponse.json({ error: 'Employee updated but service rates could not be saved' }, { status: 500 });
+        }
       }
 
       return NextResponse.json({ message: 'Employee updated' });
