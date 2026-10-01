@@ -42,12 +42,31 @@ type AreaStatus =
   | 'exported'
   | 'locked';
 
+interface AreaInput {
+  status: string;
+  submitted_at: string | null;
+  returned_at: string | null;
+  return_reason: string | null;
+}
+
 interface AreaRow {
   area: AreaName;
   workers: number;
   run: PayRun | null;
   status: AreaStatus;
   total_placeholder: string;
+  input: AreaInput | null;
+}
+
+interface ActivityEntry {
+  id: string;
+  created_at: string;
+  actor: string | null;
+  area: string | null;
+  entity_type: string;
+  action: string;
+  before_data: any;
+  after_data: any;
 }
 
 interface OwnerPeriodContext {
@@ -55,6 +74,70 @@ interface OwnerPeriodContext {
   selected_period_id: string | null;
   areas: AreaRow[];
   consolidated_run: PayRun | null;
+  activity: ActivityEntry[];
+}
+
+/** Devuelta al supervisor con motivo (migración 0019). */
+function isReturned(area: AreaRow) {
+  return area.input?.status === 'rejected';
+}
+
+/** Pantalla de captura del área, la misma que usa el supervisor. El owner
+ *  también puede editarla, así que sirve para corregir él mismo. */
+function supervisorCaptureHref(area: AreaRow) {
+  const routes: Partial<Record<AreaName, string>> = {
+    BA: '/payroll/capture/ba',
+    CMHC: '/payroll/capture/cmhc',
+    TCM: '/payroll/capture/tcm',
+  };
+  const base = routes[area.area];
+  return base ? withPeriod(base, area) : null;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  approve: 'Approved',
+  reopen: 'Reopened (approval removed)',
+  return_to_supervisor: 'Returned to supervisor',
+  submit: 'Submitted for approval',
+  save_draft: 'Draft saved',
+  consolidate: 'Consolidated',
+  calculate: 'Calculated',
+};
+
+function activityLabel(entry: ActivityEntry) {
+  return ACTION_LABELS[entry.action] ?? entry.action.replace(/_/g, ' ');
+}
+
+function activityDetail(entry: ActivityEntry) {
+  const after = entry.after_data ?? {};
+  const parts: string[] = [];
+  if (entry.action === 'return_to_supervisor' && after.reason) {
+    parts.push(`Reason: ${after.reason}`);
+  }
+  if (entry.action === 'submit' && after.resubmitted_after_return) {
+    parts.push('Re-submitted after being returned');
+  }
+  if (after.unconsolidated) {
+    parts.push('Period un-consolidated');
+  }
+  if (entry.action === 'approve' && after.totals) {
+    const t = after.totals;
+    const amount =
+      typeof t.total_amount === 'number'
+        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(t.total_amount)
+        : null;
+    parts.push([t.total_workers ? `${t.total_workers} workers` : null, amount].filter(Boolean).join(' · '));
+  }
+  return parts.filter(Boolean).join(' · ');
+}
+
+function fmtDateTime(iso: string) {
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function fmtDate(iso?: string | null) {
@@ -96,7 +179,8 @@ async function fetchWithSession(url: string, init: RequestInit = {}) {
   return data;
 }
 
-function statusLabel(status: AreaStatus) {
+function statusLabel(status: AreaStatus, area?: AreaRow) {
+  if (area && isReturned(area)) return 'Returned to supervisor';
   const labels: Record<AreaStatus, string> = {
     not_started: 'Not started',
     draft: 'Pending supervisor',
@@ -161,69 +245,129 @@ const smallLinkButtonStyle = {
   textDecoration: 'none',
 } as const;
 
-type ReopenControls = {
+type PendingKind = 'reopen' | 'return';
+
+type AreaActionControls = {
   pendingArea: AreaName | null;
+  pendingKind: PendingKind | null;
   busyArea: AreaName | null;
-  onAsk: (area: AreaName) => void;
+  reason: string;
+  onAsk: (area: AreaName, kind: PendingKind) => void;
+  onReason: (value: string) => void;
   onCancel: () => void;
-  onConfirm: (area: AreaName) => void;
+  onConfirmReopen: (area: AreaName) => void;
+  onConfirmReturn: (area: AreaName) => void;
 };
 
-function actionCell(area: AreaRow, reopen: ReopenControls) {
-  if (area.status === 'owner_approved' || area.status === 'consolidated') {
-    // Un área aprobada se puede reabrir para corregir la captura. Hasta el
-    // 2026-09-30 no había vuelta atrás desde la app: un error tecleado
-    // (Oscar, 80 → $66,000) o un empleado olvidado solo se arreglaban con
-    // SQL a mano. Dos clics a propósito: el primero pide confirmación.
-    const busy = reopen.busyArea === area.area;
-    if (reopen.pendingArea === area.area) {
-      return (
-        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#92400e' }}>
-            {area.status === 'consolidated'
-              ? 'This also undoes the consolidation.'
-              : 'Approval will be removed.'}
-          </span>
-          <button
-            type="button"
-            className="small"
-            disabled={busy}
-            onClick={() => reopen.onConfirm(area.area)}
-            style={{ ...smallLinkButtonStyle, borderColor: '#b45309', color: '#b45309' }}
-          >
-            {busy ? 'Reopening...' : 'Confirm reopen'}
-          </button>
-          <button
-            type="button"
-            className="small"
-            disabled={busy}
-            onClick={reopen.onCancel}
-            style={smallLinkButtonStyle}
-          >
-            Cancel
-          </button>
-        </span>
-      );
-    }
+const RETURNABLE: AreaName[] = ['BA', 'CMHC', 'TCM'];
+
+function actionCell(area: AreaRow, controls: AreaActionControls) {
+  const busy = controls.busyArea === area.area;
+  const approved = area.status === 'owner_approved' || area.status === 'consolidated';
+  const puedeCalcular =
+    area.status === 'review_ready' || area.status === 'supervisor_approved';
+  const canReturn = RETURNABLE.includes(area.area) && (approved || puedeCalcular) && !isReturned(area);
+
+  // Confirmación inline de Reopen: dos clics a propósito.
+  if (controls.pendingArea === area.area && controls.pendingKind === 'reopen') {
     return (
-      <span style={{ display: 'inline-flex', gap: 10, alignItems: 'center' }}>
-        <span style={{ color: '#0d7a5f', fontWeight: 600 }}>Ready</span>
+      <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: '#92400e' }}>
+          {area.status === 'consolidated'
+            ? 'This also undoes the consolidation.'
+            : 'Approval will be removed.'}
+        </span>
         <button
           type="button"
           className="small"
-          disabled={reopen.busyArea !== null}
-          onClick={() => reopen.onAsk(area.area)}
-          title="Remove the approval so the capture can be corrected and recalculated"
-          style={smallLinkButtonStyle}
+          disabled={busy}
+          onClick={() => controls.onConfirmReopen(area.area)}
+          style={{ ...smallLinkButtonStyle, borderColor: '#b45309', color: '#b45309' }}
         >
-          Reopen
+          {busy ? 'Reopening...' : 'Confirm reopen'}
+        </button>
+        <button type="button" className="small" disabled={busy} onClick={controls.onCancel} style={smallLinkButtonStyle}>
+          Cancel
         </button>
       </span>
     );
   }
 
-  const puedeCalcular =
-    area.status === 'review_ready' || area.status === 'supervisor_approved';
+  // Devolver al supervisor: motivo obligatorio. Queda en audit_logs y la
+  // supervisora lo ve en su pantalla de captura.
+  if (controls.pendingArea === area.area && controls.pendingKind === 'return') {
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 6, minWidth: 260 }}>
+        <textarea
+          value={controls.reason}
+          onChange={(event) => controls.onReason(event.target.value)}
+          placeholder={`Tell the ${area.area} supervisor what to fix (required)`}
+          rows={2}
+          maxLength={500}
+          disabled={busy}
+          style={{ fontSize: 13, padding: 6, borderRadius: 6, border: '1px solid #d1d5db' }}
+        />
+        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#92400e' }}>
+            {approved
+              ? area.status === 'consolidated'
+                ? 'Undoes the consolidation and the approval.'
+                : 'Removes the approval.'
+              : 'The supervisor can edit again, even past the deadline.'}
+          </span>
+          <button
+            type="button"
+            className="small"
+            disabled={busy || controls.reason.trim().length === 0}
+            onClick={() => controls.onConfirmReturn(area.area)}
+            style={{ ...smallLinkButtonStyle, borderColor: '#b45309', color: '#b45309' }}
+          >
+            {busy ? 'Returning...' : 'Confirm return'}
+          </button>
+          <button type="button" className="small" disabled={busy} onClick={controls.onCancel} style={smallLinkButtonStyle}>
+            Cancel
+          </button>
+        </span>
+      </span>
+    );
+  }
+
+  const returnButton = canReturn ? (
+    <button
+      type="button"
+      className="small"
+      disabled={controls.busyArea !== null}
+      onClick={() => controls.onAsk(area.area, 'return')}
+      title="Send the capture back to its supervisor with a note. Logged."
+      style={smallLinkButtonStyle}
+    >
+      Return
+    </button>
+  ) : null;
+
+  if (approved) {
+    // Un área aprobada se puede reabrir para corregir la captura. Hasta el
+    // 2026-09-30 no había vuelta atrás desde la app: un error tecleado
+    // (Oscar, 80 → $66,000) o un empleado olvidado solo se arreglaban con
+    // SQL a mano. Reopen = lo corrige el owner; Return = lo corrige el
+    // supervisor (2026-10-01). Las dos quedan en el historial de abajo.
+    return (
+      <span style={{ display: 'inline-flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ color: '#0d7a5f', fontWeight: 600 }}>Ready</span>
+        <button
+          type="button"
+          className="small"
+          disabled={controls.busyArea !== null}
+          onClick={() => controls.onAsk(area.area, 'reopen')}
+          title="Remove the approval so the capture can be corrected and recalculated"
+          style={smallLinkButtonStyle}
+        >
+          Reopen
+        </button>
+        {returnButton}
+      </span>
+    );
+  }
 
   // EMP la captura el owner, así que su enlace de captura tiene que estar
   // disponible SIEMPRE hasta que el área se apruebe. Antes solo aparecía en
@@ -245,10 +389,38 @@ function actionCell(area: AreaRow, reopen: ReopenControls) {
   }
 
   if (puedeCalcular) {
+    const fixHref = supervisorCaptureHref(area);
     return (
-      <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
-        Review &amp; approve
-      </Link>
+      <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Link href={reviewHref(area)} style={smallLinkButtonStyle}>
+          Review &amp; approve
+        </Link>
+        {fixHref && (
+          <Link href={fixHref} style={smallLinkButtonStyle} title="Open the capture and correct it yourself">
+            Fix capture
+          </Link>
+        )}
+        {returnButton}
+      </span>
+    );
+  }
+
+  if (isReturned(area)) {
+    const fixHref = supervisorCaptureHref(area);
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ color: '#92400e', fontSize: 13 }}>
+          Waiting for the supervisor to fix and re-submit.
+        </span>
+        {area.input?.return_reason && (
+          <span style={{ color: '#6b7280', fontSize: 12 }}>Reason: {area.input.return_reason}</span>
+        )}
+        {fixHref && (
+          <Link href={fixHref} style={{ ...smallLinkButtonStyle, alignSelf: 'flex-start' }}>
+            Fix it myself
+          </Link>
+        )}
+      </span>
     );
   }
 
@@ -264,8 +436,10 @@ export default function OwnerPeriodPage() {
   const [consolidating, setConsolidating] = useState(false);
   const [consolidateMsg, setConsolidateMsg] = useState('');
   const [consolidateErr, setConsolidateErr] = useState('');
-  const [reopenPending, setReopenPending] = useState<AreaName | null>(null);
-  const [reopenBusy, setReopenBusy] = useState<AreaName | null>(null);
+  const [pendingArea, setPendingArea] = useState<AreaName | null>(null);
+  const [pendingKind, setPendingKind] = useState<PendingKind | null>(null);
+  const [returnReason, setReturnReason] = useState('');
+  const [actionBusy, setActionBusy] = useState<AreaName | null>(null);
 
   async function loadPeriod(periodId?: string) {
     setLoading(true);
@@ -352,10 +526,16 @@ export default function OwnerPeriodPage() {
     }
   }
 
+  function clearPending() {
+    setPendingArea(null);
+    setPendingKind(null);
+    setReturnReason('');
+  }
+
   async function handleReopen(area: AreaName) {
     if (!selectedPeriodId) return;
 
-    setReopenBusy(area);
+    setActionBusy(area);
     setConsolidateMsg('');
     setConsolidateErr('');
 
@@ -366,21 +546,58 @@ export default function OwnerPeriodPage() {
         body: JSON.stringify({ period_id: selectedPeriodId, area }),
       });
       setConsolidateMsg(data?.message ?? `${area} reopened.`);
-      setReopenPending(null);
+      clearPending();
       await loadPeriod(selectedPeriodId);
     } catch (err: any) {
       setConsolidateErr(err.message || `Failed to reopen ${area}`);
     } finally {
-      setReopenBusy(null);
+      setActionBusy(null);
     }
   }
 
-  const reopenControls: ReopenControls = {
-    pendingArea: reopenPending,
-    busyArea: reopenBusy,
-    onAsk: (area) => setReopenPending(area),
-    onCancel: () => setReopenPending(null),
-    onConfirm: (area) => void handleReopen(area),
+  async function handleReturn(area: AreaName) {
+    if (!selectedPeriodId) return;
+    const reason = returnReason.trim();
+    if (!reason) {
+      setConsolidateErr('Write a reason so the supervisor knows what to fix.');
+      return;
+    }
+
+    setActionBusy(area);
+    setConsolidateMsg('');
+    setConsolidateErr('');
+
+    try {
+      const data = await fetchWithSession('/api/payroll/owner/return', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_id: selectedPeriodId, area, reason }),
+      });
+      setConsolidateMsg(data?.message ?? `${area} returned to its supervisor.`);
+      clearPending();
+      await loadPeriod(selectedPeriodId);
+    } catch (err: any) {
+      setConsolidateErr(err.message || `Failed to return ${area}`);
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  const actionControls: AreaActionControls = {
+    pendingArea,
+    pendingKind,
+    busyArea: actionBusy,
+    reason: returnReason,
+    onAsk: (area, kind) => {
+      setPendingArea(area);
+      setPendingKind(kind);
+      setReturnReason('');
+      setConsolidateErr('');
+    },
+    onReason: (value) => setReturnReason(value),
+    onCancel: clearPending,
+    onConfirmReopen: (area) => void handleReopen(area),
+    onConfirmReturn: (area) => void handleReturn(area),
   };
 
   if (userLoading) {
@@ -440,7 +657,7 @@ export default function OwnerPeriodPage() {
                 value={selectedPeriodId}
                 onChange={(event) => {
                   setSelectedPeriodId(event.target.value);
-                  setReopenPending(null);
+                  clearPending();
                   void loadPeriod(event.target.value);
                 }}
                 style={{ maxWidth: 560 }}
@@ -507,14 +724,14 @@ export default function OwnerPeriodPage() {
                       </td>
                       <td style={{ textAlign: 'center' }}>{area.workers}</td>
                       <td>
-                        <span className={statusBadgeClass(area.status)}>
-                          {statusLabel(area.status)}
+                        <span className={isReturned(area) ? 'badge warning' : statusBadgeClass(area.status)}>
+                          {statusLabel(area.status, area)}
                         </span>
                       </td>
                       <td>
                         <span style={{ color: '#6b7280' }}>{area.total_placeholder}</span>
                       </td>
-                      <td>{actionCell(area, reopenControls)}</td>
+                      <td>{actionCell(area, actionControls)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -571,6 +788,52 @@ export default function OwnerPeriodPage() {
                 'You are the only one who sees dollar amounts.'
               )}
             </span>
+          </div>
+
+          {/* Historial del periodo. Cada aprobación, reapertura, devolución y
+              envío queda en audit_logs; esto lo saca a pantalla para que una
+              corrección (quién, cuándo, por qué) se pueda auditar sin SQL. */}
+          <div className="section" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid #f0f1f3' }}>
+              <h2 style={{ fontSize: 15, margin: 0 }}>Activity log</h2>
+              <p className="subtitle" style={{ margin: '4px 0 0', fontSize: 13 }}>
+                Every approval, reopen, return and submission for this period, newest first.
+              </p>
+            </div>
+            {ctx?.activity?.length ? (
+              <div className="table-wrapper" style={{ border: 'none', boxShadow: 'none', borderRadius: 0 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>When</th>
+                      <th>Who</th>
+                      <th>Area</th>
+                      <th>Action</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ctx.activity.map((entry) => (
+                      <tr key={entry.id}>
+                        <td style={{ whiteSpace: 'nowrap', color: '#6b7280', fontSize: 13 }}>
+                          {fmtDateTime(entry.created_at)}
+                        </td>
+                        <td>{entry.actor ?? '—'}</td>
+                        <td>{entry.area ?? '—'}</td>
+                        <td style={{ fontWeight: entry.action === 'return_to_supervisor' || entry.action === 'reopen' ? 700 : 400 }}>
+                          {activityLabel(entry)}
+                        </td>
+                        <td style={{ color: '#374151', fontSize: 13 }}>{activityDetail(entry)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p style={{ padding: '14px 20px', color: '#6b7280', fontSize: 13, margin: 0 }}>
+                Nothing recorded for this period yet.
+              </p>
+            )}
           </div>
     </PayrollShell>
   );

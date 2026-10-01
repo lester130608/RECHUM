@@ -28,17 +28,16 @@
 //   - No toca nada 'exported' ni 'locked': eso ya salió a ADP y se corrige
 //     con un ajuste en el periodo siguiente, no reescribiendo el pasado.
 //   - No borra la captura: las horas/unidades siguen ahí para corregirlas.
+//
+// 2026-10-01: la lógica de deshacer la aprobación se movió a
+// lib/payroll/reopenArea.ts para compartirla con /owner/return (devolver
+// la captura al supervisor). Esta ruta conserva el mismo comportamiento.
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { requireAnyRole } from '@/lib/auth/roleAccess';
-
-const AREAS = ['BA', 'CMHC', 'TCM', 'EMP'] as const;
-type AreaName = (typeof AREAS)[number];
-
-const FROZEN = ['exported', 'locked'];
-const REOPENABLE = ['owner_approved', 'consolidated'];
+import { AREA_NAMES, type AreaName, loadAreaRun, unapproveArea } from '@/lib/payroll/reopenArea';
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,140 +51,45 @@ export async function POST(req: NextRequest) {
     const periodId = body.period_id;
     const area = String(body.area ?? '').trim().toUpperCase() as AreaName;
 
-    if (!periodId || !AREAS.includes(area)) {
+    if (!periodId || !AREA_NAMES.includes(area)) {
       return NextResponse.json({ error: 'period_id and area (BA, CMHC, TCM, EMP) are required' }, { status: 400 });
     }
 
-    const { data: run, error: runError } = await supabase
-      .from('pay_runs')
-      .select('id, status, area, period_id, owner_approved_at')
-      .eq('period_id', periodId)
-      .eq('area', area)
-      .eq('run_level', 'area')
-      .maybeSingle();
-
+    const { run, error: runError } = await loadAreaRun(supabase, periodId, area);
     if (runError) {
-      return NextResponse.json({ error: 'Failed to fetch area pay run' }, { status: 500 });
+      return NextResponse.json({ error: runError }, { status: 500 });
     }
     if (!run) {
       return NextResponse.json({ error: `No ${area} pay run exists for this period` }, { status: 404 });
     }
-    if (FROZEN.includes(run.status)) {
-      return NextResponse.json(
-        { error: `${area} is ${run.status} and cannot be reopened. Correct it with an adjustment in the next period.` },
-        { status: 403 }
-      );
-    }
-    if (!REOPENABLE.includes(run.status)) {
-      return NextResponse.json(
-        { error: `${area} is ${run.status}; only owner-approved or consolidated areas can be reopened` },
-        { status: 409 }
-      );
-    }
 
-    // ------------------------------------------------------------------
-    // 1. Deshacer la consolidación si la hay.
-    // ------------------------------------------------------------------
-    const { data: consolidatedRun, error: consolidatedError } = await supabase
-      .from('pay_runs')
-      .select('id, status')
-      .eq('period_id', periodId)
-      .eq('run_level', 'consolidated')
-      .maybeSingle();
-
-    if (consolidatedError) {
-      return NextResponse.json({ error: 'Failed to fetch consolidated run' }, { status: 500 });
-    }
-
-    let unconsolidated = false;
-
-    if (consolidatedRun) {
-      if (FROZEN.includes(consolidatedRun.status)) {
-        return NextResponse.json(
-          { error: `The consolidated run is ${consolidatedRun.status}; the period cannot be reopened` },
-          { status: 403 }
-        );
-      }
-
-      const { error: unlinkError } = await supabase
-        .from('consolidated_run_areas')
-        .delete()
-        .eq('consolidated_run_id', consolidatedRun.id);
-
-      if (unlinkError) {
-        return NextResponse.json({ error: `Failed to unlink areas: ${unlinkError.message}` }, { status: 500 });
-      }
-
-      // Las cuatro áreas vuelven a 'owner_approved' (el estado previo a
-      // consolidar). Solo el área pedida bajará a 'review_ready' después.
-      const { error: unmarkError } = await supabase
-        .from('pay_runs')
-        .update({ status: 'owner_approved' })
-        .eq('period_id', periodId)
-        .eq('run_level', 'area')
-        .eq('status', 'consolidated');
-
-      if (unmarkError) {
-        return NextResponse.json({ error: `Failed to unmark consolidated areas: ${unmarkError.message}` }, { status: 500 });
-      }
-
-      // El run GENERAL no tiene importes propios. Sin política DELETE en
-      // pay_runs, se deja en 'draft' en vez de borrarlo: consolidate lo
-      // reutiliza (loadConsolidatedRun + upsert de enlaces).
-      const { error: resetError } = await supabase
-        .from('pay_runs')
-        .update({ status: 'draft', owner_approved_at: null, owner_approved_by: null })
-        .eq('id', consolidatedRun.id);
-
-      if (resetError) {
-        return NextResponse.json({ error: `Failed to reset consolidated run: ${resetError.message}` }, { status: 500 });
-      }
-
-      unconsolidated = true;
-    }
-
-    // ------------------------------------------------------------------
-    // 2. El área vuelve a 'review_ready'.
-    // ------------------------------------------------------------------
-    const { error: reopenError } = await supabase
-      .from('pay_runs')
-      .update({ status: 'review_ready', owner_approved_at: null, owner_approved_by: null })
-      .eq('id', run.id);
-
-    if (reopenError) {
-      return NextResponse.json({ error: `Failed to reopen ${area}: ${reopenError.message}` }, { status: 500 });
-    }
-
-    // ------------------------------------------------------------------
-    // 3. Items aprobados vuelven a 'ready'. No bloquea: el recálculo los
-    //    borra y los vuelve a crear.
-    // ------------------------------------------------------------------
-    const { error: itemsError } = await supabase
-      .from('pay_run_items')
-      .update({ status: 'ready' })
-      .eq('pay_run_id', run.id)
-      .eq('status', 'approved');
-
-    if (itemsError) {
-      console.error('POST /api/payroll/owner/reopen items error:', itemsError);
+    const result = await unapproveArea(supabase, run);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
     await supabase.from('audit_logs').insert({
       entity_type: 'pay_run',
       entity_id: run.id,
       action: 'reopen',
-      before_data: { status: run.status, owner_approved_at: run.owner_approved_at },
-      after_data: { status: 'review_ready', unconsolidated, consolidated_run_id: consolidatedRun?.id ?? null },
+      before_data: { status: run.status, owner_approved_at: run.owner_approved_at, area, period_id: periodId },
+      after_data: {
+        status: 'review_ready',
+        area,
+        period_id: periodId,
+        unconsolidated: result.unconsolidated,
+        consolidated_run_id: result.consolidatedRunId,
+      },
       actor_id: auth.userId,
     });
 
     return NextResponse.json({
-      message: unconsolidated
+      message: result.unconsolidated
         ? `${area} reopened. The period was un-consolidated: re-approve ${area} and consolidate again.`
         : `${area} reopened. Correct the capture, recalculate and approve again.`,
       area,
       run_id: run.id,
-      unconsolidated,
+      unconsolidated: result.unconsolidated,
     });
   } catch (error: any) {
     console.error('POST /api/payroll/owner/reopen error:', error);

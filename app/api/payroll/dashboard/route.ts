@@ -228,6 +228,29 @@ export async function GET() {
       .map((area) => statusToTask(area.area, area.status))
       .filter((task): task is string => Boolean(task));
 
+    // Capturas devueltas por el owner (payroll_inputs.status = 'rejected',
+    // migracion 0019). Van primero en la lista y se buscan en cualquier
+    // periodo, no solo el actual: la devolucion suele llegar cuando el
+    // periodo ya cerro y el dashboard ya mira al siguiente.
+    const { data: returnedInputs } = await supabase
+      .from('payroll_inputs')
+      .select('department, return_reason, pay_runs!inner(period_id, area, run_level)')
+      .eq('status', 'rejected')
+      .in('department', [...visibleAreas]);
+
+    for (const row of (returnedInputs ?? []) as any[]) {
+      const run = Array.isArray(row.pay_runs) ? row.pay_runs[0] : row.pay_runs;
+      if (!run || run.run_level !== 'area') continue;
+      const period = periodList.find((p) => p.id === run.period_id);
+      const label = period ? period.week_code : 'a previous period';
+      const reason = row.return_reason ? ` Reason: ${row.return_reason}` : '';
+      tasks.unshift(
+        owner
+          ? `${row.department} capture for ${label} is with its supervisor for correction.${reason}`
+          : `${row.department} capture for ${label} was returned by the owner. Open the capture, fix it and submit again.${reason}`
+      );
+    }
+
     return NextResponse.json({
       role_codes: auth.roleCodes,
       is_owner: owner,

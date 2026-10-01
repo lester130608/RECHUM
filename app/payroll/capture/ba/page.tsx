@@ -45,6 +45,8 @@ interface PageContext {
     status: string;
     payload: Payload;
     submitted_at: string | null;
+    returned_at?: string | null;
+    return_reason?: string | null;
   } | null;
 }
 
@@ -221,6 +223,8 @@ export default function BACapturePage() {
     () => ctx?.pay_periods.find((period) => period.id === selectedPeriodId),
     [ctx?.pay_periods, selectedPeriodId]
   );
+
+  const isReturned = ctx?.existing_input?.status === "rejected";
 
   const alreadySubmitted =
     ctx?.existing_input?.status === 'review_ready' ||
@@ -408,6 +412,29 @@ export default function BACapturePage() {
                 ) : (
                   <span className="dtt-badge-closed">Closed</span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Devuelta por el owner: el motivo es lo primero que hay que ver.
+              Las casillas quedan editables aunque la ventana haya cerrado
+              (la API lo permite mientras la captura siga en 'rejected'). */}
+          {isReturned && (
+            <div
+              className="error"
+              style={{ marginBottom: 16, background: '#fffbeb', borderColor: '#f59e0b', color: '#92400e' }}
+            >
+              <strong>Returned by the owner for correction.</strong>
+              {ctx?.existing_input?.returned_at && (
+                <span style={{ marginLeft: 8, opacity: 0.8 }}>
+                  {new Date(ctx.existing_input.returned_at).toLocaleString()}
+                </span>
+              )}
+              <div style={{ marginTop: 6 }}>
+                Reason: {ctx?.existing_input?.return_reason || '(no reason given)'}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 13 }}>
+                Fix the units below and press <strong>Submit for Approval</strong> again. You can do this even if the capture deadline has passed.
               </div>
             </div>
           )}

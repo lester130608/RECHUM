@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase/server';
+import { isCaptureReturned, returnedPeriodIds } from '@/lib/payroll/returnedCaptures';
 import {
   canAccessPayrollArea,
   isOwner,
@@ -59,9 +60,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch pay periods' }, { status: 500 });
     }
 
+    // Una captura devuelta por el owner (status 'rejected') se puede corregir
+    // aunque la ventana ya haya cerrado: la devolucion llega despues del
+    // deadline por definicion. Ver lib/payroll/returnedCaptures.ts.
+    const returnedPeriods = owner ? new Set<string>() : await returnedPeriodIds(supabase, BA_AREA);
+
     const pay_periods = owner
       ? allPeriods ?? []
       : (allPeriods ?? []).filter((p) => {
+          if (returnedPeriods.has(p.id)) return true;
           const opens = dateToDayNum(p.capture_opens_at);
           const deadline = dateToDayNum(p.sup_deadline);
           return todayNum >= opens && todayNum <= deadline;
@@ -96,7 +103,14 @@ export async function GET(req: NextRequest) {
 
     const periodId = new URL(req.url).searchParams.get('period_id');
     let existing_run: { id: string; status: string } | null = null;
-    let existing_input: { id: string; status: string; payload: any; submitted_at: string | null } | null = null;
+    let existing_input: {
+      id: string;
+      status: string;
+      payload: any;
+      submitted_at: string | null;
+      returned_at: string | null;
+      return_reason: string | null;
+    } | null = null;
 
     if (periodId) {
       const { data: run } = await supabase
@@ -112,7 +126,7 @@ export async function GET(req: NextRequest) {
       if (run) {
         const { data: input } = await supabase
           .from('payroll_inputs')
-          .select('id, status, payload, submitted_at')
+          .select('id, status, payload, submitted_at, returned_at, return_reason')
           .eq('pay_run_id', run.id)
           .eq('department', BA_AREA)
           .maybeSingle();
@@ -195,7 +209,7 @@ export async function POST(req: NextRequest) {
       const opens = dateToDayNum(period.capture_opens_at);
       const deadline = dateToDayNum(period.sup_deadline);
 
-      if (todayNum < opens || todayNum > deadline) {
+      if ((todayNum < opens || todayNum > deadline) && !(await isCaptureReturned(supabase, period_id, BA_AREA))) {
         return NextResponse.json({ error: 'This period is not open for capture' }, { status: 403 });
       }
     }
@@ -233,15 +247,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Pay run is locked and cannot be modified' }, { status: 403 });
     }
 
-    const inputStatus = action === 'submit' ? 'review_ready' : 'draft';
     const submittedAt = action === 'submit' ? new Date().toISOString() : null;
 
     const { data: existingInput } = await supabase
       .from('payroll_inputs')
-      .select('id')
+      .select('id, status')
       .eq('pay_run_id', run.id)
       .eq('department', BA_AREA)
       .maybeSingle();
+
+    // Una captura devuelta ('rejected') sigue devuelta mientras solo se
+    // guarde borrador: si pasara a 'draft', la supervisora perderia el
+    // permiso de editar fuera de ventana antes de terminar. Solo el envio
+    // la saca de ese estado y limpia el motivo.
+    const wasReturned = existingInput?.status === 'rejected';
+    const inputStatus =
+      action === 'submit' ? 'review_ready' : wasReturned ? 'rejected' : 'draft';
+    const clearReturn =
+      action === 'submit' && wasReturned
+        ? { returned_at: null, returned_by: null, return_reason: null }
+        : {};
 
     let savedInput;
 
@@ -253,6 +278,7 @@ export async function POST(req: NextRequest) {
           status: inputStatus,
           submitted_by: auth.userId,
           submitted_at: submittedAt,
+          ...clearReturn,
         })
         .eq('id', existingInput.id)
         .select()
@@ -312,7 +338,7 @@ export async function POST(req: NextRequest) {
         entity_type: 'payroll_input',
         entity_id: savedInput.id,
         action: action === 'submit' ? 'submit' : 'save_draft',
-        after_data: { department: BA_AREA, pay_run_id: run.id, action },
+        after_data: { department: BA_AREA, pay_run_id: run.id, action, resubmitted_after_return: wasReturned },
         actor_id: auth.userId,
       })
       .then(() => {});
