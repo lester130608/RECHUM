@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
+import { NoPayList } from '@/components/Payroll/NoPayList';
 import { PayrollShell } from '@/components/Payroll/PayrollShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseUser } from '@/hooks/useSupabaseUser';
@@ -264,6 +265,15 @@ export default function BaCalculationPage() {
     );
   }
 
+  // Quien no cobra no va en la tabla principal (ruido al cuadrar con ADP);
+  // queda en la lista plegable de abajo. Las filas con error se quedan en
+  // la tabla aunque sumen cero: hay que verlas para arreglarlas.
+  const allRows = preview?.calculation.rows ?? [];
+  const paidRows = allRows.filter((row) => (row.errors.length > 0) || (row.totalAmount ?? 0) > 0);
+  const noPayRows = allRows
+    .filter((row) => !(row.errors.length > 0) && !((row.totalAmount ?? 0) > 0))
+    .map((row) => ({ id: row.employeeId, name: row.workerName }));
+
   return (
     <PayrollShell currentLabel="BA Calculation">
       <div className="page-header">
@@ -385,7 +395,7 @@ export default function BaCalculationPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.calculation.rows.map((row) => (
+                  {paidRows.map((row) => (
                     <tr key={row.employeeId} style={row.errors.length > 0 ? { background: '#fff1f2' } : undefined}>
                       <td>
                         <strong>{row.workerName}</strong>
@@ -411,6 +421,8 @@ export default function BaCalculationPage() {
               </table>
             </div>
           </div>
+
+          <NoPayList entries={noPayRows} hint="0 hours captured" />
 
           <div className="info" style={{ marginTop: 14 }}>
             BA pays hours × base rate from assignments.base_rate. Assessment and re-assessment

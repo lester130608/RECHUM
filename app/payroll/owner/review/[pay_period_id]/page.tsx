@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
+import { NoPayList } from '@/components/Payroll/NoPayList';
 import { PayrollShell } from "@/components/Payroll/PayrollShell";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -151,7 +152,7 @@ export default function ReviewPeriodPage() {
 
     rows.push("TOTAL POR EMPLEADO (para ADP)");
     rows.push(["Empleado", "Tipo", "Areas", "Horas", "Total"].map(csvCell).join(","));
-    for (const employee of employeeTotals) {
+    for (const employee of employeeTotals.filter((employee) => employee.total > 0)) {
       rows.push(
         [
           employee.employee_name,
@@ -172,7 +173,7 @@ export default function ReviewPeriodPage() {
         .map(csvCell)
         .join(",")
     );
-    for (const line of lines) {
+    for (const line of lines.filter((line) => line.amount > 0)) {
       rows.push(
         [
           line.employee_name,
@@ -190,6 +191,15 @@ export default function ReviewPeriodPage() {
 
     rows.push("");
     rows.push(["TOTAL", "", "", "", "", total.toFixed(2), ""].map(csvCell).join(","));
+
+    const noPay = employeeTotals.filter((employee) => employee.total <= 0);
+    if (noPay.length > 0) {
+      rows.push("");
+      rows.push("SIN COBRO ESTE PERIODO (no van a ADP)");
+      for (const employee of noPay) {
+        rows.push([employee.employee_name, "", employee.modules.join(" + ")].map(csvCell).join(","));
+      }
+    }
 
     // BOM para que Excel abra los acentos correctamente.
     const blob = new Blob(["﻿" + rows.join("\n")], {
@@ -223,8 +233,25 @@ export default function ReviewPeriodPage() {
     );
   }
 
-  const w2Lines = lines.filter((line) => line.tax_type === "W2");
-  const c1099Lines = lines.filter((line) => line.tax_type === "1099");
+  // Lineas a cero fuera de las tablas y del CSV: no se teclean en ADP. Las
+  // personas que quedan sin cobro se listan aparte, plegadas, para que un
+  // cero por olvido siga siendo visible.
+  const paidLines = lines.filter((line) => line.amount > 0);
+  const paidTotals = employeeTotals.filter((employee) => employee.total > 0);
+  const noPayPeople = (() => {
+    const seen = new Map<string, { id: string; name: string; note: string }>();
+    for (const employee of employeeTotals) {
+      if (employee.total > 0 || seen.has(employee.employee_id)) continue;
+      seen.set(employee.employee_id, {
+        id: employee.employee_id,
+        name: employee.employee_name,
+        note: employee.modules.join(" + "),
+      });
+    }
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  })();
+  const w2Lines = paidLines.filter((line) => line.tax_type === "W2");
+  const c1099Lines = paidLines.filter((line) => line.tax_type === "1099");
   const w2Total = w2Lines.reduce((sum, line) => sum + line.amount, 0);
   const c1099Total = c1099Lines.reduce((sum, line) => sum + line.amount, 0);
 
@@ -266,9 +293,9 @@ export default function ReviewPeriodPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Lo primero: un importe por persona. Es lo que se teclea en ADP.     */}
       {/* ------------------------------------------------------------------ */}
-      {employeeTotals.length > 0 && (
+      {paidTotals.length > 0 && (
         <div className="section">
-          <div className="heading">Total por empleado ({employeeTotals.length})</div>
+          <div className="heading">Total por empleado ({paidTotals.length})</div>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -281,7 +308,7 @@ export default function ReviewPeriodPage() {
                 </tr>
               </thead>
               <tbody>
-                {employeeTotals.map((employee) => (
+                {paidTotals.map((employee) => (
                   <tr key={`${employee.employee_id}-${employee.tax_type}`}>
                     <td>
                       <strong>{employee.employee_name}</strong>
@@ -305,6 +332,12 @@ export default function ReviewPeriodPage() {
           </div>
         </div>
       )}
+
+      <NoPayList
+        entries={noPayPeople}
+        title="Sin cobro este periodo"
+        hint="aparecen en la captura con 0; no van a ADP"
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Detalle, para cuadrar de dónde sale cada total.                     */}
