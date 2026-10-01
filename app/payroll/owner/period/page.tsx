@@ -161,9 +161,65 @@ const smallLinkButtonStyle = {
   textDecoration: 'none',
 } as const;
 
-function actionCell(area: AreaRow) {
+type ReopenControls = {
+  pendingArea: AreaName | null;
+  busyArea: AreaName | null;
+  onAsk: (area: AreaName) => void;
+  onCancel: () => void;
+  onConfirm: (area: AreaName) => void;
+};
+
+function actionCell(area: AreaRow, reopen: ReopenControls) {
   if (area.status === 'owner_approved' || area.status === 'consolidated') {
-    return <span style={{ color: '#0d7a5f', fontWeight: 600 }}>Ready</span>;
+    // Un área aprobada se puede reabrir para corregir la captura. Hasta el
+    // 2026-09-30 no había vuelta atrás desde la app: un error tecleado
+    // (Oscar, 80 → $66,000) o un empleado olvidado solo se arreglaban con
+    // SQL a mano. Dos clics a propósito: el primero pide confirmación.
+    const busy = reopen.busyArea === area.area;
+    if (reopen.pendingArea === area.area) {
+      return (
+        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#92400e' }}>
+            {area.status === 'consolidated'
+              ? 'This also undoes the consolidation.'
+              : 'Approval will be removed.'}
+          </span>
+          <button
+            type="button"
+            className="small"
+            disabled={busy}
+            onClick={() => reopen.onConfirm(area.area)}
+            style={{ ...smallLinkButtonStyle, borderColor: '#b45309', color: '#b45309' }}
+          >
+            {busy ? 'Reopening...' : 'Confirm reopen'}
+          </button>
+          <button
+            type="button"
+            className="small"
+            disabled={busy}
+            onClick={reopen.onCancel}
+            style={smallLinkButtonStyle}
+          >
+            Cancel
+          </button>
+        </span>
+      );
+    }
+    return (
+      <span style={{ display: 'inline-flex', gap: 10, alignItems: 'center' }}>
+        <span style={{ color: '#0d7a5f', fontWeight: 600 }}>Ready</span>
+        <button
+          type="button"
+          className="small"
+          disabled={reopen.busyArea !== null}
+          onClick={() => reopen.onAsk(area.area)}
+          title="Remove the approval so the capture can be corrected and recalculated"
+          style={smallLinkButtonStyle}
+        >
+          Reopen
+        </button>
+      </span>
+    );
   }
 
   const puedeCalcular =
@@ -208,6 +264,8 @@ export default function OwnerPeriodPage() {
   const [consolidating, setConsolidating] = useState(false);
   const [consolidateMsg, setConsolidateMsg] = useState('');
   const [consolidateErr, setConsolidateErr] = useState('');
+  const [reopenPending, setReopenPending] = useState<AreaName | null>(null);
+  const [reopenBusy, setReopenBusy] = useState<AreaName | null>(null);
 
   async function loadPeriod(periodId?: string) {
     setLoading(true);
@@ -294,6 +352,37 @@ export default function OwnerPeriodPage() {
     }
   }
 
+  async function handleReopen(area: AreaName) {
+    if (!selectedPeriodId) return;
+
+    setReopenBusy(area);
+    setConsolidateMsg('');
+    setConsolidateErr('');
+
+    try {
+      const data = await fetchWithSession('/api/payroll/owner/reopen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_id: selectedPeriodId, area }),
+      });
+      setConsolidateMsg(data?.message ?? `${area} reopened.`);
+      setReopenPending(null);
+      await loadPeriod(selectedPeriodId);
+    } catch (err: any) {
+      setConsolidateErr(err.message || `Failed to reopen ${area}`);
+    } finally {
+      setReopenBusy(null);
+    }
+  }
+
+  const reopenControls: ReopenControls = {
+    pendingArea: reopenPending,
+    busyArea: reopenBusy,
+    onAsk: (area) => setReopenPending(area),
+    onCancel: () => setReopenPending(null),
+    onConfirm: (area) => void handleReopen(area),
+  };
+
   if (userLoading) {
     return (
       <PayrollShell currentLabel="Period Review">
@@ -351,6 +440,7 @@ export default function OwnerPeriodPage() {
                 value={selectedPeriodId}
                 onChange={(event) => {
                   setSelectedPeriodId(event.target.value);
+                  setReopenPending(null);
                   void loadPeriod(event.target.value);
                 }}
                 style={{ maxWidth: 560 }}
@@ -424,7 +514,7 @@ export default function OwnerPeriodPage() {
                       <td>
                         <span style={{ color: '#6b7280' }}>{area.total_placeholder}</span>
                       </td>
-                      <td>{actionCell(area)}</td>
+                      <td>{actionCell(area, reopenControls)}</td>
                     </tr>
                   ))}
                 </tbody>

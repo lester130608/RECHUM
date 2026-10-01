@@ -112,18 +112,24 @@ export default function ReviewPeriodPage() {
     load();
   }, [payPeriodId]);
 
-  // Total por persona: lo que hay que teclear en ADP.
+  // Total por persona Y tipo fiscal: lo que hay que teclear en ADP.
+  //
+  // Antes agrupaba solo por persona, y a quien cobra en dos áreas con tipos
+  // distintos le sumaba todo bajo el primero que apareciera. Edwina es
+  // BCBA/1099 en BA y OUTREACH/W2 en EMP: en ADP son dos entradas
+  // separadas, así que aquí también. (Corregido 2026-09-30.)
   const employeeTotals = useMemo<EmployeeTotal[]>(() => {
     const byEmployee = new Map<string, EmployeeTotal>();
 
     for (const line of lines) {
-      const current = byEmployee.get(line.employee_id);
+      const key = `${line.employee_id}|${line.tax_type}`;
+      const current = byEmployee.get(key);
       if (current) {
         current.total += line.amount;
         if (line.hours != null) current.hours = (current.hours ?? 0) + line.hours;
         if (!current.modules.includes(line.module)) current.modules.push(line.module);
       } else {
-        byEmployee.set(line.employee_id, {
+        byEmployee.set(key, {
           employee_id: line.employee_id,
           employee_name: line.employee_name,
           tax_type: line.tax_type,
@@ -276,7 +282,7 @@ export default function ReviewPeriodPage() {
               </thead>
               <tbody>
                 {employeeTotals.map((employee) => (
-                  <tr key={employee.employee_id}>
+                  <tr key={`${employee.employee_id}-${employee.tax_type}`}>
                     <td>
                       <strong>{employee.employee_name}</strong>
                     </td>
